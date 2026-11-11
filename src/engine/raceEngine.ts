@@ -34,7 +34,6 @@ export interface RaceSimulationSnapshot {
   distancePreset: RaceDistancePreset;
   weather: WeatherCondition;
   trackWaterLevel: number; // 0.00 (asciutto) -> 1.00 (allagato 5mm)
-  weatherForecast: WeatherCondition[];
   raceControl: RaceControlStatus;
   safetyCarLapsRemaining: number;
   bestLapTimeSec: number | null;
@@ -140,7 +139,6 @@ export function createInitialRaceState(
   options?: {
     track?: TrackData;
     distancePreset?: RaceDistancePreset;
-    playerTeamId?: string;
     initialWeather?: WeatherCondition;
   }
 ): RaceSimulationSnapshot {
@@ -202,7 +200,6 @@ export function createInitialRaceState(
       teamId: team.id,
       teamName: team.name,
       teamColor: team.colorHex,
-      teamAccent: team.accentHex ?? '#ffffff',
       position: index + 1,
 
       currentLap: 1,
@@ -267,12 +264,6 @@ export function createInitialRaceState(
     c.gapToLeaderSec = idx * 0.25;
   });
 
-  // Previsione meteo a 4 step lungo la gara
-  const forecast: WeatherCondition[] = [weather, weather, weather, weather];
-  if ((track.baseRainChance ?? 0.15) >= 0.35 && weather === 'DRY') {
-    forecast[2] = 'LIGHT_RAIN';
-  }
-
   return {
     raceTimeSec: 0,
     currentLap: 1,
@@ -280,7 +271,6 @@ export function createInitialRaceState(
     distancePreset,
     weather,
     trackWaterLevel: initialWater,
-    weatherForecast: forecast,
     raceControl: 'GREEN',
     safetyCarLapsRemaining: 0,
     bestLapTimeSec: null,
@@ -794,7 +784,7 @@ export function stepRaceSimulation(
       const isPlayerTeam = car.teamId === playerTeamId;
       const remainingLaps = Math.max(0, totalLaps - car.currentLap + 1);
       if (!isPlayerTeam && car.currentLap <= totalLaps) {
-        const aiDecision = evaluateAiPitStrategy(car, prev, track, remainingLaps);
+        const aiDecision = evaluateAiPitStrategy(car, prev, remainingLaps);
         car.paceMode = aiDecision.targetPace;
         car.ersMode = aiDecision.targetErs;
         if (aiDecision.requestPit) {
@@ -882,7 +872,6 @@ export function stepRaceSimulation(
     distancePreset: prev.distancePreset,
     weather,
     trackWaterLevel,
-    weatherForecast: prev.weatherForecast,
     raceControl,
     safetyCarLapsRemaining,
     bestLapTimeSec,

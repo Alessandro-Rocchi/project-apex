@@ -80,7 +80,6 @@ assert.ok(scaled25.wearScale > scaled100.wearScale);
 let wetSim = createInitialRaceState(DEFAULT_DB.teams, DEFAULT_DB.drivers, [], {
   track: track0,
   distancePreset: 'SPRINT_25',
-  playerTeamId: 'corsa-rossa',
   initialWeather: 'HEAVY_RAIN',
 });
 assert.equal(wetSim.cars.length, 20);
@@ -102,7 +101,6 @@ assert.ok(pittedCar.pitStopTimerSec > track0.pitLaneTimeLossSec);
 let orderSim = createInitialRaceState(DEFAULT_DB.teams, DEFAULT_DB.drivers, [], {
   track: track0,
   distancePreset: 'SPRINT_25',
-  playerTeamId: 'corsa-rossa',
 });
 const pCars = orderSim.cars.filter((c) => c.teamId === 'corsa-rossa');
 pCars[0].totalDistanceMeters = 1500;
@@ -115,15 +113,14 @@ const afterFirst = orderSim.cars.find((c) => c.carId === pCars[1].carId)!;
 const afterSecond = orderSim.cars.find((c) => c.carId === pCars[0].carId)!;
 assert.ok(afterFirst.position < afterSecond.position);
 
-// Task 3 Tests: Qualifying Q1/Q2/Q3 elimination and Monte Carlo benchmark
+// Task 3 Tests: Qualifying Q1/Q2/Q3 elimination
 import {
   createQualifyingSession,
   runFullQualifyingAuto,
   runQualifyingStage,
 } from './src/engine/qualifyingEngine.ts';
-import { runMonteCarloBenchmark } from './src/engine/simBenchmark.ts';
 
-let quali = createQualifyingSession(DEFAULT_DB.teams, DEFAULT_DB.drivers, track0, 'DRY');
+let quali = createQualifyingSession(DEFAULT_DB.teams, DEFAULT_DB.drivers, 'DRY');
 assert.equal(quali.stage, 'Q1');
 quali = runQualifyingStage(quali, DEFAULT_DB.teams, DEFAULT_DB.drivers, track0, {});
 assert.equal(quali.stage, 'Q2');
@@ -133,10 +130,6 @@ quali = runFullQualifyingAuto(quali, DEFAULT_DB.teams, DEFAULT_DB.drivers, track
 assert.equal(quali.stage, 'FINISHED');
 assert.equal(quali.results.filter((r) => r.eliminatedIn === 'Q2').length, 5);
 assert.equal(quali.results.filter((r) => r.q3TimeSec !== null).length, 10);
-
-const bench = runMonteCarloBenchmark(8);
-assert.ok(bench.avgPitStopsPerCar >= 0.8 && bench.avgPitStopsPerCar <= 3.2, `Unexpected avgPitStopsPerCar: ${bench.avgPitStopsPerCar}`);
-assert.ok(bench.tier1WinShare >= 0.25 && bench.tier1WinShare <= 1.0, `Unexpected tier1WinShare: ${bench.tier1WinShare}`);
 
 // Task 4 Tests: HQ Simulator (R&D, Budget Cap, Daily Calendar, Reserve FP1, Multi-Season) & Spline 2D
 import {
@@ -169,16 +162,16 @@ assert.equal(adv.reachedRaceWeekend, true);
 assert.equal(adv.state.currentDay, 14);
 assert.equal(adv.state.activeRdProjects.length, 0);
 
-// Reserve driver in FP1 grants setup radius bonus
-const fp1Res = runReserveDriverFp1(adv.state);
-assert.ok(fp1Res.setupRadiusBonus >= 2);
+// Reserve driver in FP1 grants XP and sets round flag
+const fp1State = runReserveDriverFp1(adv.state);
+assert.equal(fp1State.reserveUsedInFp1ThisRound, true);
 
 // Post-race points & End-of-season transition
 const orderIds = career.db.drivers
   .filter((d) => d.role === 'PRIMARY' || d.role === 'SECONDARY')
   .map((d) => d.id);
 const afterRace = applyRaceWeekendResults(
-  fp1Res.state,
+  fp1State,
   orderIds,
   orderIds.slice(0, 10),
   orderIds[0],

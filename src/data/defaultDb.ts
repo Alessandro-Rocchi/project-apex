@@ -644,7 +644,6 @@ export const INITIAL_SPONSORS: SponsorDeal[] = [
   {
     id: 'sp-main-chronos',
     name: 'Chronos Quantum Watch',
-    tagline: 'Precisione atomica per i top team mondiali',
     type: 'MAIN',
     minTierAllowed: 2,
     basePayoutPerRaceMillions: 3.4,
@@ -655,7 +654,6 @@ export const INITIAL_SPONSORS: SponsorDeal[] = [
   {
     id: 'sp-main-aether',
     name: 'Aether Cloud & AI',
-    tagline: 'Infrastruttura globale per la telemetria in tempo reale',
     type: 'MAIN',
     minTierAllowed: 3,
     basePayoutPerRaceMillions: 2.8,
@@ -666,7 +664,6 @@ export const INITIAL_SPONSORS: SponsorDeal[] = [
   {
     id: 'sp-main-helios',
     name: 'Helios Bio-Synth Fuels',
-    tagline: 'Carburanti sintetici a zero emissioni per le corse',
     type: 'MAIN',
     minTierAllowed: 5,
     basePayoutPerRaceMillions: 2.2,
@@ -677,7 +674,6 @@ export const INITIAL_SPONSORS: SponsorDeal[] = [
   {
     id: 'sp-main-vanguard',
     name: 'Vanguard Logistics Group',
-    tagline: 'Soluzioni di trasporto aerospaziale e motorsport',
     type: 'MAIN',
     minTierAllowed: 5,
     basePayoutPerRaceMillions: 1.9,
@@ -690,7 +686,6 @@ export const INITIAL_SPONSORS: SponsorDeal[] = [
   {
     id: 'sp-sec-hyperion',
     name: 'Hyperion Semiconductors',
-    tagline: 'Sensori ad altissima frequenza per qualifiche estreme',
     type: 'SECONDARY',
     minTierAllowed: 5,
     basePayoutPerRaceMillions: 0.35,
@@ -701,7 +696,6 @@ export const INITIAL_SPONSORS: SponsorDeal[] = [
   {
     id: 'sp-sec-titan',
     name: 'Titan Composite Brakes',
-    tagline: 'Affidabilità strutturale dal primo all’ultimo giro',
     type: 'SECONDARY',
     minTierAllowed: 5,
     basePayoutPerRaceMillions: 0.30,
@@ -712,7 +706,6 @@ export const INITIAL_SPONSORS: SponsorDeal[] = [
   {
     id: 'sp-sec-nova',
     name: 'Nova Energy Drink',
-    tagline: 'Adrenalina pura nei sorpassi al limite',
     type: 'SECONDARY',
     minTierAllowed: 5,
     basePayoutPerRaceMillions: 0.25,
@@ -723,7 +716,6 @@ export const INITIAL_SPONSORS: SponsorDeal[] = [
   {
     id: 'sp-sec-velox',
     name: 'Velox Optical Fiber',
-    tagline: 'La rete più veloce sul giro secco',
     type: 'SECONDARY',
     minTierAllowed: 5,
     basePayoutPerRaceMillions: 0.20,
@@ -734,7 +726,6 @@ export const INITIAL_SPONSORS: SponsorDeal[] = [
   {
     id: 'sp-sec-aurum',
     name: 'Aurum Private Banking',
-    tagline: 'Eccellenza riservata ai protagonisti del podio',
     type: 'SECONDARY',
     minTierAllowed: 3,
     basePayoutPerRaceMillions: 0.40,

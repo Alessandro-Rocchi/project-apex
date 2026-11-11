@@ -194,7 +194,7 @@ export default function HqView({
           [
             ['RD', '🔧 1. Ingegneria & R&D (6 Reparti)'],
             ['FACILITIES', '🏭 2. Strutture HQ'],
-            ['DRIVERS', ' helmet 3. Mercato Piloti & Collaudatore'],
+            ['DRIVERS', '🏎️ 3. Mercato Piloti & Collaudatore'],
             ['FINANCE', '💼 4. Finanze & Sponsor'],
             ['STANDINGS', '🏆 5. Classifiche & Calendario 12 GP'],
           ] as [HqTab, string][]
@@ -211,7 +211,7 @@ export default function HqView({
                 : 'bg-[#111827] border border-slate-800 text-slate-300 hover:border-slate-600'
             }`}
           >
-            {label.replace(' helmet ', '🏎️ ')}
+            {label}
           </button>
         ))}
       </div>

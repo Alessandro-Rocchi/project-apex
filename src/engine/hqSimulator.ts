@@ -26,7 +26,6 @@ export interface CareerState {
   activeSecondarySponsorIds: string[];
   driverPoints: Record<string, number>;
   teamPoints: Record<string, number>;
-  driverWins: Record<string, number>;
   reserveUsedInFp1ThisRound: boolean;
   inbox: InboxMessage[];
   db: GameDatabase;
@@ -50,10 +49,8 @@ export function createInitialCareerState(
     .slice(0, 2);
 
   const driverPoints: Record<string, number> = {};
-  const driverWins: Record<string, number> = {};
   for (const d of clonedDb.drivers) {
     driverPoints[d.id] = 0;
-    driverWins[d.id] = 0;
   }
 
   const teamPoints: Record<string, number> = {};
@@ -74,7 +71,6 @@ export function createInitialCareerState(
     activeSecondarySponsorIds: secSponsors.map((s) => s.id),
     driverPoints,
     teamPoints,
-    driverWins,
     reserveUsedInFp1ThisRound: false,
     inbox: [
       {
@@ -84,7 +80,6 @@ export function createInitialCareerState(
         title: `Benvenuto in ${playerTeam.name}`,
         body: `Il Consiglio di Amministrazione ti affida la direzione sportiva per la Stagione 1. Budget disponibile: ${playerTeam.budgetMillions.toFixed(1)} M€. Prossimo GP al Giorno ${DAYS_BETWEEN_RACES}.`,
         category: 'FIA',
-        read: false,
       },
     ],
     db: clonedDb,
@@ -165,7 +160,6 @@ export function startRdProject(
     focus,
     gainAmount: quote.expectedGain,
     daysRemaining: quote.durationDays,
-    totalDays: quote.durationDays,
     costMillions: quote.costMillions,
   });
 
@@ -198,7 +192,6 @@ export function startFacilityUpgrade(
     facility,
     targetLevel: currentLvl + 1,
     daysRemaining: durationDays,
-    totalDays: durationDays,
     costMillions,
   };
   return { state: next, ok: true };
@@ -235,7 +228,6 @@ export function advanceCareerDays(
           title: `Aggiornamento ${proj.component.toUpperCase()} Completato`,
           body: `Il reparto R&D ha installato il nuovo pacchetto (${proj.focus} +${proj.gainAmount}).`,
           category: 'RD',
-          read: false,
         });
       } else {
         remainingProjects.push(proj);
@@ -256,7 +248,6 @@ export function advanceCareerDays(
           title: `Struttura ${fac.toUpperCase()} al Livello ${team.facilities[fac]}`,
           body: `I lavori di ampliamento del Quartier Generale sono terminati con successo.`,
           category: 'RD',
-          read: false,
         });
         next.activeFacilityUpgrade = null;
       }
@@ -269,12 +260,8 @@ export function advanceCareerDays(
   };
 }
 
-export function runReserveDriverFp1(state: CareerState): {
-  state: CareerState;
-  setupRadiusBonus: number;
-} {
+export function runReserveDriverFp1(state: CareerState): CareerState {
   const next = structuredClone(state);
-  const team = next.db.teams.find((t) => t.id === next.playerTeamId)!;
   const reserve = next.db.drivers.find(
     (d) => d.teamId === next.playerTeamId && d.role === 'RESERVE'
   );
@@ -286,8 +273,7 @@ export function runReserveDriverFp1(state: CareerState): {
     next.reserveUsedInFp1ThisRound = true;
   }
 
-  const setupRadiusBonus = 2 + Math.floor(team.facilities.simulator * 0.8);
-  return { state: next, setupRadiusBonus };
+  return next;
 }
 
 export function signDriverToPlayerTeam(
@@ -334,7 +320,6 @@ export function signDriverToPlayerTeam(
     title: `Ufficiale: ${candidate.name} ingaggiato (${targetRole})`,
     body: `Contratto biennale firmato con ${team.name}.`,
     category: 'CONTRACT',
-    read: false,
   });
 
   return { state: next, ok: true };
@@ -355,9 +340,6 @@ export function applyRaceWeekendResults(
   finishingOrderDriverIds.forEach((drvId, idx) => {
     const drv = next.db.drivers.find((d) => d.id === drvId);
     if (!drv || retiredSet.has(drvId)) return;
-    if (idx === 0) {
-      next.driverWins[drvId] = (next.driverWins[drvId] ?? 0) + 1;
-    }
     if (idx < 10) {
       let pts = FIA_POINTS[idx];
       if (fastestLapDriverId === drvId) pts += 1;
@@ -438,7 +420,6 @@ export function applyRaceWeekendResults(
     title: `Bilancio GP #${next.currentRoundIndex + 1}: ${netDelta >= 0 ? '+' : ''}${netDelta.toFixed(2)} M€`,
     body: `Miglior risultato: P${bestPlayerPos === 99 ? 'DNF' : bestPlayerPos}. Incassi sponsor: +${totalIncome.toFixed(2)} M€, Stipendi: -${totalSalaries.toFixed(2)} M€.`,
     category: 'FINANCE',
-    read: false,
   });
 
   next.currentRoundIndex += 1;
@@ -488,7 +469,6 @@ export function finalizeSeasonAndStartNext(state: CareerState): CareerState {
       d.contractYearsLeft -= 1;
     }
     next.driverPoints[d.id] = 0;
-    next.driverWins[d.id] = 0;
   }
 
   for (const t of next.db.teams) {
@@ -511,7 +491,6 @@ export function finalizeSeasonAndStartNext(state: CareerState): CareerState {
     title: `Inizia la Stagione ${next.season}! Premio Costruttori P${playerRank}: +${playerPrize} M€`,
     body: `Il Budget Cap FIA di ${SEASON_BUDGET_CAP_MILLIONS} M€ è stato azzerato per il nuovo campionato mondiale.`,
     category: 'FIA',
-    read: false,
   });
 
   return next;

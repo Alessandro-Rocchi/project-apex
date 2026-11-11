@@ -14,7 +14,6 @@ export interface QualifyingDriverOrder {
   driverId: string;
   compound: TyreCompound;
   exitTiming: ExitTimingOption;
-  pushLevel: 'SAFE' | 'MAX_ATTACK';
 }
 
 export interface QualifyingDriverResult {
@@ -32,7 +31,6 @@ export interface QualifyingDriverResult {
   activeTimeSec: number | null;
   compound: TyreCompound;
   eliminatedIn: 'Q1' | 'Q2' | null;
-  hadTrafficOrYellow: boolean;
 }
 
 export interface QualifyingSessionState {
@@ -40,7 +38,6 @@ export interface QualifyingSessionState {
   weather: WeatherCondition;
   trackWaterLevel: number;
   results: QualifyingDriverResult[];
-  logs: string[];
 }
 
 const DRY_TYRE_DELTA: Record<TyreCompound, number> = {
@@ -63,7 +60,6 @@ function computeReferenceTrackTimeSec(track: TrackData): number {
 export function createQualifyingSession(
   teams: Team[],
   drivers: Driver[],
-  _track: TrackData,
   weather: WeatherCondition = 'DRY'
 ): QualifyingSessionState {
   const activeDrivers =
@@ -93,7 +89,6 @@ export function createQualifyingSession(
       activeTimeSec: null,
       compound: defaultCompound,
       eliminatedIn: null,
-      hadTrafficOrYellow: false,
     };
   });
 
@@ -102,9 +97,6 @@ export function createQualifyingSession(
     weather,
     trackWaterLevel,
     results,
-    logs: [
-      `[QUALIFICHE FIA]: Sessione Q1 aperta (${results.length} vetture, Meteo: ${weather}). I primi 15 accedono in Q2.`,
-    ],
   };
 }
 
@@ -122,7 +114,6 @@ export function runQualifyingStage(
   const baseTrackTime = computeReferenceTrackTimeSec(track);
   const water = state.trackWaterLevel;
   const stageSeed = currentStage === 'Q1' ? 11.3 : currentStage === 'Q2' ? 23.7 : 37.9;
-  const newLogs: string[] = [];
 
   const updatedResults: QualifyingDriverResult[] = state.results.map((r) => ({ ...r }));
 
@@ -138,7 +129,6 @@ export function runQualifyingStage(
       water >= 0.58 ? 'WET' : water >= 0.2 ? 'INTER' : 'SOFT';
     const compound: TyreCompound = order?.compound ?? defaultComp;
     const exitTiming: ExitTimingOption = order?.exitTiming ?? 'MID';
-    const pushLevel = order?.pushLevel ?? 'MAX_ATTACK';
 
     // Contributo monoposto pesato sui segmenti del circuito
     const carComposite =
@@ -170,28 +160,18 @@ export function runQualifyingStage(
     const randVal =
       ((Math.sin(drv.number * stageSeed + baseTrackTime) * 10000) % 1 + 1) % 1;
     let timingDeltaSec: number;
-    let hadTraffic = false;
     if (exitTiming === 'EARLY') {
       timingDeltaSec = 0.16; // Pista ancora "verde", ma zero traffico
     } else if (exitTiming === 'MID') {
-      timingDeltaSec = 0.05;
-      if (randVal > 0.92) {
-        timingDeltaSec += 0.28;
-        hadTraffic = true;
-      }
+      timingDeltaSec = 0.05 + (randVal > 0.92 ? 0.28 : 0);
     } else {
-      timingDeltaSec = -0.14; // Massima gommatura pista
-      if (randVal > 0.83) {
-        timingDeltaSec += 0.48; // Rischio traffico o bandiera gialla nell'ultimo tentativo
-        hadTraffic = true;
-      }
+      timingDeltaSec = -0.14 + (randVal > 0.83 ? 0.48 : 0); // Massima gommatura pista vs rischio traffico
     }
 
-    // Modalità spinta e micro-varianza legata alla consistency
-    const pushDeltaSec = pushLevel === 'MAX_ATTACK' ? -0.12 : 0.08;
+    // Micro-varianza legata alla consistency
+    const pushDeltaSec = -0.12;
     const consistencyNoise =
-      ((randVal - 0.5) * (100 - (drv.consistency ?? 88)) * 0.012) *
-      (pushLevel === 'MAX_ATTACK' ? 1.35 : 0.85);
+      (randVal - 0.5) * (100 - (drv.consistency ?? 88)) * 0.012 * 1.35;
 
     const stageEvolutionSec =
       currentStage === 'Q1' ? 0.35 : currentStage === 'Q2' ? 0.15 : 0.0;
@@ -210,7 +190,6 @@ export function runQualifyingStage(
     );
 
     res.compound = compound;
-    res.hadTrafficOrYellow = hadTraffic;
     res.activeTimeSec = finalLapSec;
     if (currentStage === 'Q1') res.q1TimeSec = finalLapSec;
     if (currentStage === 'Q2') res.q2TimeSec = finalLapSec;
@@ -232,28 +211,12 @@ export function runQualifyingStage(
 
   if (currentStage === 'Q1') {
     activePool.forEach((r, idx) => {
-      if (idx >= 15) {
-        r.eliminatedIn = 'Q1';
-      }
+      if (idx >= 15) r.eliminatedIn = 'Q1';
     });
-    const newlyEliminated = activePool.slice(15).map((r) => r.driverCode).join(', ');
-    newLogs.push(
-      `[FINE Q1]: Miglior tempo ${activePool[0].driverCode} (${activePool[0].q1TimeSec?.toFixed(3)}s). Eliminati P16–P20: ${newlyEliminated}.`
-    );
   } else if (currentStage === 'Q2') {
     activePool.forEach((r, idx) => {
-      if (idx >= 10) {
-        r.eliminatedIn = 'Q2';
-      }
+      if (idx >= 10) r.eliminatedIn = 'Q2';
     });
-    const newlyEliminated = activePool.slice(10).map((r) => r.driverCode).join(', ');
-    newLogs.push(
-      `[FINE Q2]: Miglior tempo ${activePool[0].driverCode} (${activePool[0].q2TimeSec?.toFixed(3)}s). Eliminati P11–P15: ${newlyEliminated}.`
-    );
-  } else if (currentStage === 'Q3') {
-    newLogs.push(
-      `[POLE POSITION]: ${activePool[0].driverName} (${activePool[0].driverCode}) conquista la Pole in ${activePool[0].q3TimeSec?.toFixed(3)}s!`
-    );
   }
 
   const finalOrdered =
@@ -274,7 +237,6 @@ export function runQualifyingStage(
     ...state,
     stage: nextStage,
     results: finalOrdered,
-    logs: [...newLogs, ...state.logs],
   };
 }
 

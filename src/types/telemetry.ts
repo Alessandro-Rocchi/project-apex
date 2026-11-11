@@ -112,7 +112,6 @@ export interface CarRaceState {
   teamId: string;
   teamName: string;
   teamColor: string;
-  teamAccent: string;
   position: number;
 
   currentLap: number;
@@ -176,7 +175,6 @@ export type SponsorObjectiveType =
 export interface SponsorDeal {
   id: string;
   name: string;
-  tagline: string;
   type: 'MAIN' | 'SECONDARY';
   minTierAllowed: 1 | 2 | 3 | 4 | 5;
   basePayoutPerRaceMillions: number;
@@ -191,7 +189,6 @@ export interface RdProject {
   focus: 'PERFORMANCE' | 'RELIABILITY';
   gainAmount: number;
   daysRemaining: number;
-  totalDays: number;
   costMillions: number;
 }
 
@@ -199,7 +196,6 @@ export interface FacilityUpgradeProject {
   facility: 'factory' | 'windTunnel' | 'simulator';
   targetLevel: number;
   daysRemaining: number;
-  totalDays: number;
   costMillions: number;
 }
 
@@ -210,7 +206,6 @@ export interface InboxMessage {
   title: string;
   body: string;
   category: 'RD' | 'FINANCE' | 'CONTRACT' | 'RACE' | 'FIA';
-  read: boolean;
 }
 
 export interface GameDatabase {

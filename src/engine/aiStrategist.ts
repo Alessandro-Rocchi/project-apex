@@ -2,7 +2,6 @@ import type {
   CarRaceState,
   ErsMode,
   PaceMode,
-  TrackData,
   TyreCompound,
 } from '../types/telemetry.ts';
 import type { RaceSimulationSnapshot } from './raceEngine.ts';
@@ -10,7 +9,6 @@ import type { RaceSimulationSnapshot } from './raceEngine.ts';
 export function evaluateAiPitStrategy(
   car: CarRaceState,
   snapshot: RaceSimulationSnapshot,
-  _track: TrackData,
   remainingLaps: number
 ): {
   requestPit: boolean;

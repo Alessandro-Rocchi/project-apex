@@ -84,7 +84,7 @@ export default function App() {
 
   const [preRaceConfigs, setPreRaceConfigs] = useState<PreRaceCarConfig[]>([]);
   const [quali, setQuali] = useState<QualifyingSessionState>(() =>
-    createQualifyingSession(DEFAULT_DB.teams, DEFAULT_DB.drivers, DEFAULT_DB.tracks[0])
+    createQualifyingSession(DEFAULT_DB.teams, DEFAULT_DB.drivers)
   );
   const [qualiOrders, setQualiOrders] = useState<Record<string, QualifyingDriverOrder>>({});
 
@@ -98,7 +98,6 @@ export default function App() {
     createInitialRaceState(career.db.teams, career.db.drivers, [], {
       track: activeTrack,
       distancePreset: career.distancePreset,
-      playerTeamId: career.playerTeamId,
     })
   );
   const [isRunning, setIsRunning] = useState<boolean>(false);
@@ -148,7 +147,6 @@ export default function App() {
       createQualifyingSession(
         career.db.teams,
         career.db.drivers,
-        activeTrack,
         weatherToUse
       )
     );
@@ -180,7 +178,6 @@ export default function App() {
       createInitialRaceState(career.db.teams, career.db.drivers, mergedConfigs, {
         track: activeTrack,
         distancePreset: career.distancePreset,
-        playerTeamId: career.playerTeamId,
         initialWeather: finalQuali.weather,
       })
     );
@@ -580,10 +577,9 @@ export default function App() {
           distancePreset={career.distancePreset}
           simulatorLevel={playerTeam.facilities.simulator}
           reserveUsedInFp1={career.reserveUsedInFp1ThisRound}
-          onRunReserveFp1={() => {
-            const res = runReserveDriverFp1(career);
-            updateAndSaveCareer(res.state);
-          }}
+          onRunReserveFp1={() =>
+            updateAndSaveCareer(runReserveDriverFp1(career))
+          }
           onStartRaceWeekend={handleSetupDone}
         />
       )}
@@ -661,7 +657,6 @@ export default function App() {
                     driverId: r.driverId,
                     compound: quali.weather === 'DRY' ? 'SOFT' : 'INTER',
                     exitTiming: 'LATE',
-                    pushLevel: 'MAX_ATTACK',
                   };
                   return (
                     <div
