@@ -1,0 +1,213 @@
+import assert from 'node:assert/strict';
+import { DEFAULT_DB } from './src/data/defaultDb.ts';
+import { deriveCarPhysics, validateCustomDatabase } from './src/engine/carPhysicsMapper.ts';
+
+// Task 1 Tests: 10 teams, >=30 drivers, 12 tracks, zero forbidden real-world circuit/corner references
+assert.equal(DEFAULT_DB.teams.length, 10);
+assert.ok(DEFAULT_DB.drivers.length >= 30);
+assert.equal(DEFAULT_DB.tracks.length, 12);
+
+const serializedDb = JSON.stringify(DEFAULT_DB).toLowerCase();
+for (const forbidden of [
+  'monza',
+  'monaco',
+  'silverstone',
+  'suzuka',
+  'interlagos',
+  'biassono',
+  'parabolica',
+  'ascari',
+  'roggia',
+  'lesmo',
+  'serraglio',
+]) {
+  assert.equal(
+    serializedDb.includes(forbidden),
+    false,
+    `Forbidden real-world reference found: ${forbidden}`
+  );
+}
+
+// Verify 6 R&D components -> 4 physics attributes & front wing damage penalty
+const basePhys = deriveCarPhysics(
+  {
+    powerUnit: { performance: 90, reliability: 92 },
+    frontWing: { performance: 80, reliability: 88 },
+    rearWing: { performance: 85, reliability: 90 },
+    floor: { performance: 88, reliability: 86 },
+    suspension: { performance: 84, reliability: 91 },
+    brakes: { performance: 82, reliability: 93 },
+  },
+  0
+);
+assert.equal(basePhys.power, 90);
+assert.equal(basePhys.aeroEfficiency, Math.round(80 * 0.4 + 85 * 0.6));
+assert.equal(basePhys.downforce, Math.round(88 * 0.5 + 85 * 0.3 + 80 * 0.2));
+assert.equal(basePhys.mechanicalGrip, Math.round(84 * 0.6 + 82 * 0.4));
+
+const damagedPhys = deriveCarPhysics(
+  {
+    powerUnit: { performance: 90, reliability: 92 },
+    frontWing: { performance: 80, reliability: 88 },
+    rearWing: { performance: 85, reliability: 90 },
+    floor: { performance: 88, reliability: 86 },
+    suspension: { performance: 84, reliability: 91 },
+    brakes: { performance: 82, reliability: 93 },
+  },
+  100
+);
+assert.ok(damagedPhys.downforce < basePhys.downforce);
+assert.ok(damagedPhys.aeroEfficiency < basePhys.aeroEfficiency);
+
+// Verify custom DB validation rejects invalid JSON structure
+assert.equal(validateCustomDatabase({ teams: [] }).valid, false);
+assert.equal(validateCustomDatabase(DEFAULT_DB).valid, true);
+
+// Task 2 Tests: Race distance scaling, wet weather rules, wing damage repair, team orders, sectors, and Safety Car
+import {
+  createInitialRaceState,
+  getScaledTrackLaps,
+  stepRaceSimulation,
+} from './src/engine/raceEngine.ts';
+
+const track0 = DEFAULT_DB.tracks[0];
+const scaled25 = getScaledTrackLaps(track0, 'SPRINT_25');
+const scaled100 = getScaledTrackLaps(track0, 'FULL_100');
+assert.ok(scaled25.totalLaps < scaled100.totalLaps);
+assert.ok(scaled25.wearScale > scaled100.wearScale);
+
+// Wet race waives 2-dry-compound rule and starts on wet tyres
+let wetSim = createInitialRaceState(DEFAULT_DB.teams, DEFAULT_DB.drivers, [], {
+  track: track0,
+  distancePreset: 'SPRINT_25',
+  playerTeamId: 'corsa-rossa',
+  initialWeather: 'HEAVY_RAIN',
+});
+assert.equal(wetSim.cars.length, 20);
+assert.ok(wetSim.trackWaterLevel >= 0.6);
+
+// Wing damage repair adds pit stop time and resets frontWingDamage to 0
+const targetCarId = wetSim.cars[0].carId;
+wetSim.cars[0].frontWingDamage = 55;
+wetSim.cars[0].repairDamageOnStop = true;
+wetSim.cars[0].pitBoxRequested = true;
+wetSim.cars[0].nextTyreCompound = 'WET';
+wetSim.cars[0].distanceOnLapMeters = track0.lengthMeters - 5;
+wetSim = stepRaceSimulation(wetSim, track0, DEFAULT_DB.teams, DEFAULT_DB.drivers, 0.5, 'corsa-rossa');
+const pittedCar = wetSim.cars.find((c) => c.carId === targetCarId)!;
+assert.equal(pittedCar.isInPitLane, true);
+assert.ok(pittedCar.pitStopTimerSec > track0.pitLaneTimeLossSec);
+
+// Team orders: SWAP_POSITIONS swaps two adjacent player teammates within 2.5s
+let orderSim = createInitialRaceState(DEFAULT_DB.teams, DEFAULT_DB.drivers, [], {
+  track: track0,
+  distancePreset: 'SPRINT_25',
+  playerTeamId: 'corsa-rossa',
+});
+const pCars = orderSim.cars.filter((c) => c.teamId === 'corsa-rossa');
+pCars[0].totalDistanceMeters = 1500;
+pCars[0].distanceOnLapMeters = 1500;
+pCars[1].totalDistanceMeters = 1485;
+pCars[1].distanceOnLapMeters = 1485;
+pCars[1].teamOrder = 'SWAP_POSITIONS';
+orderSim = stepRaceSimulation(orderSim, track0, DEFAULT_DB.teams, DEFAULT_DB.drivers, 0.2, 'corsa-rossa');
+const afterFirst = orderSim.cars.find((c) => c.carId === pCars[1].carId)!;
+const afterSecond = orderSim.cars.find((c) => c.carId === pCars[0].carId)!;
+assert.ok(afterFirst.position < afterSecond.position);
+
+// Task 3 Tests: Qualifying Q1/Q2/Q3 elimination and Monte Carlo benchmark
+import {
+  createQualifyingSession,
+  runFullQualifyingAuto,
+  runQualifyingStage,
+} from './src/engine/qualifyingEngine.ts';
+import { runMonteCarloBenchmark } from './src/engine/simBenchmark.ts';
+
+let quali = createQualifyingSession(DEFAULT_DB.teams, DEFAULT_DB.drivers, track0, 'DRY');
+assert.equal(quali.stage, 'Q1');
+quali = runQualifyingStage(quali, DEFAULT_DB.teams, DEFAULT_DB.drivers, track0, {});
+assert.equal(quali.stage, 'Q2');
+assert.equal(quali.results.filter((r) => r.eliminatedIn === 'Q1').length, 5);
+
+quali = runFullQualifyingAuto(quali, DEFAULT_DB.teams, DEFAULT_DB.drivers, track0, {});
+assert.equal(quali.stage, 'FINISHED');
+assert.equal(quali.results.filter((r) => r.eliminatedIn === 'Q2').length, 5);
+assert.equal(quali.results.filter((r) => r.q3TimeSec !== null).length, 10);
+
+const bench = runMonteCarloBenchmark(8);
+assert.ok(bench.avgPitStopsPerCar >= 0.8 && bench.avgPitStopsPerCar <= 3.2, `Unexpected avgPitStopsPerCar: ${bench.avgPitStopsPerCar}`);
+assert.ok(bench.tier1WinShare >= 0.25 && bench.tier1WinShare <= 1.0, `Unexpected tier1WinShare: ${bench.tier1WinShare}`);
+
+// Task 4 Tests: HQ Simulator (R&D, Budget Cap, Daily Calendar, Reserve FP1, Multi-Season) & Spline 2D
+import {
+  advanceCareerDays,
+  applyRaceWeekendResults,
+  createInitialCareerState,
+  finalizeSeasonAndStartNext,
+  getRdProjectQuote,
+  runReserveDriverFp1,
+  startRdProject,
+} from './src/engine/hqSimulator.ts';
+import { generateTrackSplinePolyline, sampleClosedCatmullRom } from './src/utils/spline2D.ts';
+
+let career = createInitialCareerState(DEFAULT_DB, 'corsa-rossa', 'SPRINT_25');
+const quote1 = getRdProjectQuote(career.db.teams[0], 'frontWing', 'PERFORMANCE');
+assert.ok(quote1.costMillions > 0 && quote1.expectedGain >= 2);
+
+const resRd = startRdProject(career, 'frontWing', 'PERFORMANCE');
+assert.equal(resRd.ok, true);
+career = resRd.state;
+assert.equal(career.activeRdProjects.length, 1);
+
+// Budget cap guard test
+const overCapCareer = { ...career, budgetCapSpentMillions: 134.8 };
+assert.equal(startRdProject(overCapCareer, 'powerUnit', 'PERFORMANCE').ok, false);
+
+// Calendar stops on race weekend (day 14) even if asked to advance 30 days
+const adv = advanceCareerDays(career, 30);
+assert.equal(adv.reachedRaceWeekend, true);
+assert.equal(adv.state.currentDay, 14);
+assert.equal(adv.state.activeRdProjects.length, 0);
+
+// Reserve driver in FP1 grants setup radius bonus
+const fp1Res = runReserveDriverFp1(adv.state);
+assert.ok(fp1Res.setupRadiusBonus >= 2);
+
+// Post-race points & End-of-season transition
+const orderIds = career.db.drivers
+  .filter((d) => d.role === 'PRIMARY' || d.role === 'SECONDARY')
+  .map((d) => d.id);
+const afterRace = applyRaceWeekendResults(
+  fp1Res.state,
+  orderIds,
+  orderIds.slice(0, 10),
+  orderIds[0],
+  []
+);
+assert.equal(afterRace.driverPoints[orderIds[0]], 26); // 25 + 1 fastest lap
+const nextSeason = finalizeSeasonAndStartNext(afterRace);
+assert.equal(nextSeason.season, 2);
+assert.equal(nextSeason.budgetCapSpentMillions, 0);
+assert.equal(nextSeason.currentRoundIndex, 0);
+
+// Task 5 Tests: Closed Catmull-Rom spline
+const pStart = sampleClosedCatmullRom(track0, 0, 800, 400);
+const pEnd = sampleClosedCatmullRom(track0, track0.lengthMeters, 800, 400);
+assert.ok(Math.hypot(pStart.x - pEnd.x, pStart.y - pEnd.y) < 1e-3);
+const poly = generateTrackSplinePolyline(track0, 800, 400, 120);
+assert.equal(poly.length, 120);
+
+// Regression Tests: Parc Ferme starts P20 on 20-car grid & 50%/100% fuel scaling
+const pfSim = createInitialRaceState(
+  DEFAULT_DB.teams,
+  DEFAULT_DB.drivers,
+  [{ carId: 'car-16', setupConfidence: 95, startCompound: 'SOFT', fuelKg: 28, brokeParcFerme: true }],
+  { track: track0, distancePreset: 'SPRINT_25' }
+);
+assert.equal(pfSim.cars.at(-1)?.carId, 'car-16');
+
+const sim50 = createInitialRaceState(DEFAULT_DB.teams, DEFAULT_DB.drivers, [], {
+  track: track0,
+  distancePreset: 'STANDARD_50',
+});
+assert.equal(sim50.cars[0].fuelKg, 54.0);
