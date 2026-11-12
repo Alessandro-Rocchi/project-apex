@@ -4,6 +4,8 @@ Task 1: complete (commits base..head, tests: npm test -> PASS)
 Task 2: complete (commits base..head, tests: npm test -> PASS)
 Task 3: complete (commits base..head, tests: npm test -> PASS)
 Task 4: complete (commits base..head, tests: npm test -> PASS)
+Task 5: complete (commits base..head, tests: npm run lint && npm run build -> PASS)
+
 
 
 

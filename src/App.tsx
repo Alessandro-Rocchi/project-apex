@@ -132,6 +132,12 @@ export default function App() {
     return () => clearInterval(id);
   }, [running, speedMultiplier, activeTrack, career.db.teams, career.db.drivers, career.playerTeamId]);
 
+  useEffect(() => {
+    if (sim.raceControl === 'VIRTUAL_SAFETY_CAR' || sim.raceControl === 'SAFETY_CAR') {
+      soundEffects.playRadioBeep();
+    }
+  }, [sim.raceControl]);
+
   const playerTeam =
     career.db.teams.find((t) => t.id === career.playerTeamId) ?? career.db.teams[0];
 
@@ -789,6 +795,8 @@ export default function App() {
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50'
                     : sim.raceControl === 'SAFETY_CAR'
                     ? 'bg-amber-500 text-black animate-pulse'
+                    : sim.raceControl === 'VIRTUAL_SAFETY_CAR'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/60 animate-pulse'
                     : 'bg-yellow-500/30 text-yellow-200 border border-yellow-400'
                 }`}
               >
@@ -796,6 +804,8 @@ export default function App() {
                   ? '🟢 BANDIERA VERDE'
                   : sim.raceControl === 'SAFETY_CAR'
                   ? `🟠 SAFETY CAR IN PISTA (${sim.safetyCarLapsRemaining} GIRI)`
+                  : sim.raceControl === 'VIRTUAL_SAFETY_CAR'
+                  ? `🟡 VSC • VIRTUAL SAFETY CAR (${sim.vscLapsRemaining} GIRI)`
                   : '🟡 BANDIERA GIALLA'}
               </span>
               <span className="text-slate-300 text-xs">
