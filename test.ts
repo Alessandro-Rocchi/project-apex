@@ -204,3 +204,14 @@ const sim50 = createInitialRaceState(DEFAULT_DB.teams, DEFAULT_DB.drivers, [], {
   distancePreset: 'STANDARD_50',
 });
 assert.equal(sim50.cars[0].fuelKg, 54.0);
+
+// Task 1 (VSC): Type & initial snapshot state
+const testInitSim = createInitialRaceState(DEFAULT_DB.teams, DEFAULT_DB.drivers, [], {
+  track: DEFAULT_DB.tracks[0],
+  distancePreset: 'SPRINT_25',
+});
+assert.equal(testInitSim.vscLapsRemaining, 0);
+assert.equal(typeof testInitSim.vscLapsRemaining, 'number');
+assert.equal(testInitSim.raceControl, 'GREEN');
+
+

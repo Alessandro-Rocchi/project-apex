@@ -36,6 +36,7 @@ export interface RaceSimulationSnapshot {
   trackWaterLevel: number; // 0.00 (asciutto) -> 1.00 (allagato 5mm)
   raceControl: RaceControlStatus;
   safetyCarLapsRemaining: number;
+  vscLapsRemaining: number;
   bestLapTimeSec: number | null;
   bestLapDriverCode: string | null;
   overallBestSectors: [number | null, number | null, number | null];
@@ -273,6 +274,7 @@ export function createInitialRaceState(
     trackWaterLevel: initialWater,
     raceControl: 'GREEN',
     safetyCarLapsRemaining: 0,
+    vscLapsRemaining: 0,
     bestLapTimeSec: null,
     bestLapDriverCode: null,
     overallBestSectors: [null, null, null],
@@ -304,6 +306,7 @@ export function stepRaceSimulation(
   let trackWaterLevel = prev.trackWaterLevel;
   let raceControl = prev.raceControl;
   let safetyCarLapsRemaining = prev.safetyCarLapsRemaining;
+  let vscLapsRemaining = prev.vscLapsRemaining ?? 0;
   let bestLapTimeSec = prev.bestLapTimeSec;
   let bestLapDriverCode = prev.bestLapDriverCode;
   const overallBestSectors: [number | null, number | null, number | null] = [
@@ -874,6 +877,7 @@ export function stepRaceSimulation(
     trackWaterLevel,
     raceControl,
     safetyCarLapsRemaining,
+    vscLapsRemaining,
     bestLapTimeSec,
     bestLapDriverCode,
     overallBestSectors,
