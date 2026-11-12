@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { Driver, GameDatabase } from '../types/telemetry';
+import { deriveCarPhysics } from '../engine/carPhysicsMapper';
 import {
-  buildCustomTeam,
+  TIER_PRESETS,
   pickRandomDriversForTier,
   type CustomTeamInput,
 } from '../engine/customTeamBuilder';
 import { soundEffects } from '../utils/soundEffects';
 
 export interface TeamCreatorModalProps {
-  isOpen: boolean;
   currentDb: GameDatabase;
   onClose: () => void;
   onConfirm: (input: CustomTeamInput) => void;
@@ -37,25 +37,19 @@ const MOTORSPORT_NATIONS = [
   'Argentina',
 ];
 
-const TIER_OPTIONS: Array<{
-  tier: 1 | 2 | 3 | 4 | 5;
-  title: string;
-  approxBudget: string;
-  desc: string;
-}> = [
-  { tier: 1, title: 'Tier 1', approxBudget: '~48M€', desc: 'Top Team' },
-  { tier: 2, title: 'Tier 2', approxBudget: '~40M€', desc: 'Midfield Alto' },
-  { tier: 3, title: 'Tier 3', approxBudget: '~33M€', desc: 'Midfield' },
-  { tier: 4, title: 'Tier 4', approxBudget: '~26M€', desc: 'Midfield Basso' },
-  { tier: 5, title: 'Tier 5', approxBudget: '~20M€', desc: 'Underdog' },
+const TIER_OPTIONS: Array<{ tier: 1 | 2 | 3 | 4 | 5; desc: string }> = [
+  { tier: 1, desc: 'Top Team' },
+  { tier: 2, desc: 'Midfield Alto' },
+  { tier: 3, desc: 'Midfield' },
+  { tier: 4, desc: 'Midfield Basso' },
+  { tier: 5, desc: 'Underdog' },
 ];
 
 export default function TeamCreatorModal({
-  isOpen,
   currentDb,
   onClose,
   onConfirm,
-}: TeamCreatorModalProps): React.JSX.Element | null {
+}: TeamCreatorModalProps): React.JSX.Element {
   const lowestTierTeam = useMemo(
     () => [...currentDb.teams].sort((a, b) => b.tier - a.tier)[0],
     [currentDb.teams]
@@ -75,59 +69,32 @@ export default function TeamCreatorModal({
   const [primaryDriverId, setPrimaryDriverId] = useState<string>(initialD1 ?? '');
   const [secondaryDriverId, setSecondaryDriverId] = useState<string>(initialD2 ?? '');
 
-  const safeColorHex = !colorHex || !colorHex.startsWith('#') ? '#059669' : colorHex;
-  const safeAccentHex = !accentHex || !accentHex.startsWith('#') ? '#FBBF24' : accentHex;
+  const safeColorHex = colorHex.startsWith('#') ? colorHex : '#059669';
+  const safeAccentHex = accentHex.startsWith('#') ? accentHex : '#FBBF24';
 
-  // Close on Escape key press
   useEffect(() => {
-    if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
+      if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [onClose]);
 
-  const sortedDrivers = useMemo(() => {
-    return [...currentDb.drivers].sort((a, b) => b.pace - a.pace);
-  }, [currentDb.drivers]);
+  const sortedDrivers = useMemo(
+    () => [...currentDb.drivers].sort((a, b) => b.pace - a.pace),
+    [currentDb.drivers]
+  );
 
   const getDriverTeamLabel = (driver: Driver): string => {
-    if (!driver.teamId || driver.role === 'FREE_AGENT') {
-      return 'Free Agent';
-    }
-    const team = currentDb.teams.find((t) => t.id === driver.teamId);
-    return team ? team.name : 'Free Agent';
+    if (!driver.teamId || driver.role === 'FREE_AGENT') return 'Free Agent';
+    return currentDb.teams.find((t) => t.id === driver.teamId)?.name ?? 'Free Agent';
   };
 
-  const previewTeam = useMemo(() => {
-    return buildCustomTeam({
-      name: name.trim() || 'Scuderia Apex',
-      nationality,
-      colorHex: safeColorHex,
-      accentHex: safeAccentHex,
-      tier,
-      replacedTeamId: replacedTeamId || currentDb.teams[0]?.id || '',
-      primaryDriverId: primaryDriverId || '',
-      secondaryDriverId: secondaryDriverId || '',
-    });
-  }, [
-    name,
-    nationality,
-    safeColorHex,
-    safeAccentHex,
-    tier,
-    replacedTeamId,
-    primaryDriverId,
-    secondaryDriverId,
-    currentDb.teams,
-  ]);
-
-  if (!isOpen) {
-    return null;
-  }
+  const previewPreset = TIER_PRESETS[tier];
+  const previewPhysics = useMemo(
+    () => deriveCarPhysics(previewPreset.components),
+    [previewPreset]
+  );
 
   const handleRandomizeDrivers = () => {
     soundEffects.playTacticalClick();
@@ -238,45 +205,32 @@ export default function TeamCreatorModal({
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                      Colore Primario
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="color"
-                        value={safeColorHex.length === 7 ? safeColorHex : '#059669'}
-                        onChange={(e) => setColorHex(e.target.value)}
-                        className="w-8 h-8 rounded border border-slate-700 bg-transparent cursor-pointer p-0"
-                      />
-                      <input
-                        type="text"
-                        value={colorHex}
-                        onChange={(e) => setColorHex(e.target.value)}
-                        className="w-20 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] font-mono text-slate-200 uppercase focus:outline-none focus:border-emerald-400"
-                      />
+                  {(
+                    [
+                      ['Colore Primario', colorHex, safeColorHex, '#059669', setColorHex],
+                      ['Accento', accentHex, safeAccentHex, '#FBBF24', setAccentHex],
+                    ] as const
+                  ).map(([label, rawHex, safeHex, fallback, setHex]) => (
+                    <div key={label}>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        {label}
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="color"
+                          value={safeHex.length === 7 ? safeHex : fallback}
+                          onChange={(e) => setHex(e.target.value)}
+                          className="w-8 h-8 rounded border border-slate-700 bg-transparent cursor-pointer p-0"
+                        />
+                        <input
+                          type="text"
+                          value={rawHex}
+                          onChange={(e) => setHex(e.target.value)}
+                          className="w-20 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] font-mono text-slate-200 uppercase focus:outline-none focus:border-emerald-400"
+                        />
+                      </div>
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                      Accento
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="color"
-                        value={safeAccentHex.length === 7 ? safeAccentHex : '#FBBF24'}
-                        onChange={(e) => setAccentHex(e.target.value)}
-                        className="w-8 h-8 rounded border border-slate-700 bg-transparent cursor-pointer p-0"
-                      />
-                      <input
-                        type="text"
-                        value={accentHex}
-                        onChange={(e) => setAccentHex(e.target.value)}
-                        className="w-20 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[11px] font-mono text-slate-200 uppercase focus:outline-none focus:border-emerald-400"
-                      />
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -350,9 +304,11 @@ export default function TeamCreatorModal({
                           : 'bg-slate-900/80 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'
                       }`}
                     >
-                      <div className="font-bold text-xs text-white">{opt.title}</div>
+                      <div className="font-bold text-xs text-white">Tier {opt.tier}</div>
                       <div className="text-[10px] text-amber-400 font-semibold">{opt.desc}</div>
-                      <div className="text-[10px] text-slate-400 telemetry-number">{opt.approxBudget}</div>
+                      <div className="text-[10px] text-slate-400 telemetry-number">
+                        ~{TIER_PRESETS[opt.tier].budgetMillions}M€
+                      </div>
                     </button>
                   );
                 })}
@@ -367,15 +323,15 @@ export default function TeamCreatorModal({
                     Budget Iniziale:
                   </span>
                   <span className="text-emerald-400 font-bold telemetry-number text-sm">
-                    {previewTeam.budgetMillions.toFixed(1)} M€
+                    {previewPreset.budgetMillions.toFixed(1)} M€
                   </span>
                 </div>
                 <div className="text-[11px] text-slate-400">
                   Strutture HQ:{' '}
                   <span className="text-slate-200 font-semibold">
-                    Fabbrica (liv. {previewTeam.facilities.factory}), Galleria (liv.{' '}
-                    {previewTeam.facilities.windTunnel}), Simulatore (liv.{' '}
-                    {previewTeam.facilities.simulator})
+                    Fabbrica (liv. {previewPreset.facilities.factory}), Galleria (liv.{' '}
+                    {previewPreset.facilities.windTunnel}), Simulatore (liv.{' '}
+                    {previewPreset.facilities.simulator})
                   </span>
                 </div>
               </div>
@@ -385,30 +341,21 @@ export default function TeamCreatorModal({
                   Telemetria Monoposto Stimata (Car Physics)
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                  <div className="bg-[#090D16] p-2 rounded border border-slate-800">
-                    <div className="text-[10px] text-slate-400 uppercase">PWR (Potenza)</div>
-                    <div className="text-sm font-bold text-amber-400 telemetry-number">
-                      {previewTeam.power}
+                  {(
+                    [
+                      ['PWR (Potenza)', previewPhysics.power, 'text-amber-400'],
+                      ['AERO (Carico)', previewPhysics.downforce, 'text-cyan-400'],
+                      ['GRIP (Meccanico)', previewPhysics.mechanicalGrip, 'text-emerald-400'],
+                      ['AFFIDABILITÀ', `${previewPhysics.overallReliability}%`, 'text-purple-400'],
+                    ] as const
+                  ).map(([label, value, colorClass]) => (
+                    <div key={label} className="bg-[#090D16] p-2 rounded border border-slate-800">
+                      <div className="text-[10px] text-slate-400 uppercase">{label}</div>
+                      <div className={`text-sm font-bold telemetry-number ${colorClass}`}>
+                        {value}
+                      </div>
                     </div>
-                  </div>
-                  <div className="bg-[#090D16] p-2 rounded border border-slate-800">
-                    <div className="text-[10px] text-slate-400 uppercase">AERO (Carico)</div>
-                    <div className="text-sm font-bold text-cyan-400 telemetry-number">
-                      {previewTeam.downforce}
-                    </div>
-                  </div>
-                  <div className="bg-[#090D16] p-2 rounded border border-slate-800">
-                    <div className="text-[10px] text-slate-400 uppercase">GRIP (Meccanico)</div>
-                    <div className="text-sm font-bold text-emerald-400 telemetry-number">
-                      {previewTeam.mechanicalGrip}
-                    </div>
-                  </div>
-                  <div className="bg-[#090D16] p-2 rounded border border-slate-800">
-                    <div className="text-[10px] text-slate-400 uppercase">AFFIDABILITÀ</div>
-                    <div className="text-sm font-bold text-purple-400 telemetry-number">
-                      {previewTeam.overallReliability}%
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -433,45 +380,29 @@ export default function TeamCreatorModal({
 
           <div className="bg-[#090D16] border border-slate-800 rounded-lg p-3.5 space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                  Pilota 1 (Primary)
-                </label>
-                <select
-                  value={primaryDriverId}
-                  onChange={(e) => setPrimaryDriverId(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-400 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none cursor-pointer"
-                >
-                  {sortedDrivers.map((d) => {
-                    const teamLabel = getDriverTeamLabel(d);
-                    return (
+              {(
+                [
+                  ['Pilota 1 (Primary)', primaryDriverId, setPrimaryDriverId],
+                  ['Pilota 2 (Secondary)', secondaryDriverId, setSecondaryDriverId],
+                ] as const
+              ).map(([label, driverId, setDriverId]) => (
+                <div key={label}>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    {label}
+                  </label>
+                  <select
+                    value={driverId}
+                    onChange={(e) => setDriverId(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-400 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none cursor-pointer"
+                  >
+                    {sortedDrivers.map((d) => (
                       <option key={d.id} value={d.id}>
-                        [{d.pace}] {d.name} ({d.nationality}) - {teamLabel}
+                        [{d.pace}] {d.name} ({d.nationality}) - {getDriverTeamLabel(d)}
                       </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                  Pilota 2 (Secondary)
-                </label>
-                <select
-                  value={secondaryDriverId}
-                  onChange={(e) => setSecondaryDriverId(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-400 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none cursor-pointer"
-                >
-                  {sortedDrivers.map((d) => {
-                    const teamLabel = getDriverTeamLabel(d);
-                    return (
-                      <option key={d.id} value={d.id}>
-                        [{d.pace}] {d.name} ({d.nationality}) - {teamLabel}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
+                    ))}
+                  </select>
+                </div>
+              ))}
             </div>
 
             {/* Validation & Error banner */}

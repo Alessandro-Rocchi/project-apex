@@ -23,7 +23,7 @@ function createComponents(performance: number, reliability: number): CarComponen
   };
 }
 
-const TIER_PRESETS: Record<
+export const TIER_PRESETS: Record<
   1 | 2 | 3 | 4 | 5,
   { budgetMillions: number; facilities: TeamFacilities; components: CarComponents }
 > = {
@@ -54,24 +54,18 @@ const TIER_PRESETS: Record<
   },
 };
 
-export function getTierPresets(tier: 1 | 2 | 3 | 4 | 5): {
-  budgetMillions: number;
-  facilities: TeamFacilities;
-  components: CarComponents;
-} {
-  return TIER_PRESETS[tier] ?? TIER_PRESETS[3];
-}
-
-export function buildCustomTeam(input: CustomTeamInput, generatedId?: string): Team {
-  const cleanSlug = input.name
+function toTeamId(name: string): string {
+  const cleanSlug = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
-  const id = generatedId || (cleanSlug ? `custom-${cleanSlug}` : 'custom-team');
+  return cleanSlug ? `custom-${cleanSlug}` : 'custom-team';
+}
 
-  const preset = getTierPresets(input.tier);
+export function buildCustomTeam(input: CustomTeamInput, generatedId?: string): Team {
+  const preset = TIER_PRESETS[input.tier];
   return hydrateTeamPhysics({
-    id,
+    id: generatedId || toTeamId(input.name),
     name: input.name,
     nationality: input.nationality,
     colorHex: input.colorHex,
@@ -92,19 +86,11 @@ export function executeTeamReplacement(
     throw new Error('Primary and Secondary drivers must be distinct.');
   }
 
-  // Generate / resolve custom team ID with collision check
-  const cleanSlug = input.name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-  let resolvedId = customTeamId || (cleanSlug ? `custom-${cleanSlug}` : 'custom-team');
-
-  // Verify that the generated team id is not already used by another team in db.teams (excluding replacedTeamId)
-  if (db.teams.some((t) => t.id === resolvedId && t.id !== input.replacedTeamId)) {
-    resolvedId = `${resolvedId}-${Date.now().toString(36)}`;
-    while (db.teams.some((t) => t.id === resolvedId && t.id !== input.replacedTeamId)) {
-      resolvedId = `${resolvedId}-${Math.random().toString(36).slice(2, 6)}`;
-    }
+  const baseId = customTeamId || toTeamId(input.name);
+  let resolvedId = baseId;
+  let suffix = 2;
+  while (db.teams.some((t) => t.id === resolvedId && t.id !== input.replacedTeamId)) {
+    resolvedId = `${baseId}-${suffix++}`;
   }
 
   const updatedDb = structuredClone(db);
@@ -118,11 +104,10 @@ export function executeTeamReplacement(
     updatedDb.teams.push(newTeam);
   }
 
-  // Displaced reserve driver reassigned to newTeam.id as RESERVE
+  // Displaced reserve driver reassigned to newTeam.id
   for (const d of updatedDb.drivers) {
     if (d.teamId === input.replacedTeamId && d.role === 'RESERVE') {
       d.teamId = newTeam.id;
-      d.role = 'RESERVE';
     }
   }
 
@@ -186,18 +171,12 @@ export function executeTeamReplacement(
   return { updatedDb, newTeam };
 }
 
-interface TierPaceRange {
-  min: number;
-  max: number;
-  target: number;
-}
-
-const TIER_PACE_RANGES: Record<1 | 2 | 3 | 4 | 5, TierPaceRange> = {
-  1: { min: 90, max: 100, target: 94 },
-  2: { min: 86, max: 91, target: 88.5 },
-  3: { min: 82, max: 87, target: 84.5 },
-  4: { min: 78, max: 83, target: 80.5 },
-  5: { min: 0, max: 80, target: 76 },
+const TIER_PACE_RANGES: Record<1 | 2 | 3 | 4 | 5, { min: number; max: number }> = {
+  1: { min: 90, max: 100 },
+  2: { min: 86, max: 91 },
+  3: { min: 82, max: 87 },
+  4: { min: 78, max: 83 },
+  5: { min: 0, max: 80 },
 };
 
 export function pickRandomDriversForTier(

@@ -414,38 +414,38 @@ assert.ok(Math.abs(vscFuel - greenFuel * 0.40) < 1e-4, `Expected VSC fuel ~0.40x
 // Custom Team Creator (Task 1 Engine Tests)
 // ==========================================
 import {
+  TIER_PRESETS,
   buildCustomTeam,
   executeTeamReplacement,
-  getTierPresets,
   pickRandomDriversForTier,
 } from './src/engine/customTeamBuilder.ts';
 
-// 1. getTierPresets tests for all 5 tiers
-const presetT1 = getTierPresets(1);
+// 1. TIER_PRESETS tests for all 5 tiers
+const presetT1 = TIER_PRESETS[1];
 assert.equal(presetT1.budgetMillions, 48.0);
 assert.deepEqual(presetT1.facilities, { factory: 3, windTunnel: 3, simulator: 3 });
 assert.equal(presetT1.components.powerUnit.performance, 93);
 assert.equal(presetT1.components.powerUnit.reliability, 91);
 
-const presetT2 = getTierPresets(2);
+const presetT2 = TIER_PRESETS[2];
 assert.equal(presetT2.budgetMillions, 40.0);
 assert.deepEqual(presetT2.facilities, { factory: 2, windTunnel: 3, simulator: 2 });
 assert.equal(presetT2.components.frontWing.performance, 89);
 assert.equal(presetT2.components.frontWing.reliability, 90);
 
-const presetT3 = getTierPresets(3);
+const presetT3 = TIER_PRESETS[3];
 assert.equal(presetT3.budgetMillions, 33.0);
 assert.deepEqual(presetT3.facilities, { factory: 2, windTunnel: 2, simulator: 2 });
 assert.equal(presetT3.components.rearWing.performance, 85);
 assert.equal(presetT3.components.rearWing.reliability, 89);
 
-const presetT4 = getTierPresets(4);
+const presetT4 = TIER_PRESETS[4];
 assert.equal(presetT4.budgetMillions, 26.0);
 assert.deepEqual(presetT4.facilities, { factory: 1, windTunnel: 2, simulator: 1 });
 assert.equal(presetT4.components.floor.performance, 81);
 assert.equal(presetT4.components.floor.reliability, 87);
 
-const presetT5 = getTierPresets(5);
+const presetT5 = TIER_PRESETS[5];
 assert.equal(presetT5.budgetMillions, 20.0);
 assert.deepEqual(presetT5.facilities, { factory: 1, windTunnel: 1, simulator: 1 });
 assert.equal(presetT5.components.suspension.performance, 77);
@@ -841,8 +841,13 @@ const newTeam = customSimReplacement.newTeam;
 
 // 1. Qualifying Session
 const qualiSession = createQualifyingSession(customDb.teams, customDb.drivers, 'DRY');
-const autoQuali = runFullQualifyingAuto(qualiSession, customDb.teams, customDb.drivers);
-assert.equal(autoQuali.isCompleted, true);
+const autoQuali = runFullQualifyingAuto(
+  qualiSession,
+  customDb.teams,
+  customDb.drivers,
+  customDb.tracks[0],
+  {}
+);
 assert.equal(autoQuali.stage, 'FINISHED');
 assert.equal(autoQuali.results.length, 20);
 
@@ -878,7 +883,7 @@ for (let i = 0; i < 50; i++) {
   );
 }
 assert.equal(currentSim.cars.length, 20);
-assert.ok(currentSim.elapsedTimeSec > 0);
+assert.ok(currentSim.raceTimeSec > 0);
 
 // Assert custom team cars operate normally
 const customSteppedCars = currentSim.cars.filter((c) => c.teamId === newTeam.id);

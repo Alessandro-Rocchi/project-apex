@@ -287,29 +287,22 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  const exportSaveJson = () => {
-    const blob = new Blob([JSON.stringify(career, null, 2)], {
+  const downloadJson = (data: unknown, filename: string) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: 'application/json',
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `project-apex-season-${career.season}-day-${career.currentDay}.json`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  const exportDatabaseJson = () => {
-    const blob = new Blob([JSON.stringify(career.db, null, 2)], {
-      type: 'application/json',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'project-apex-database.json';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const exportSaveJson = () =>
+    downloadJson(career, `project-apex-season-${career.season}-day-${career.currentDay}.json`);
+
+  const exportDatabaseJson = () => downloadJson(career.db, 'project-apex-database.json');
 
   const handleResetDefaultDatabase = () => {
     const confirmed = window.confirm(
@@ -1373,7 +1366,6 @@ export default function App() {
 
       {isTeamCreatorOpen && (
         <TeamCreatorModal
-          isOpen={isTeamCreatorOpen}
           currentDb={career.db}
           onClose={() => setIsTeamCreatorOpen(false)}
           onConfirm={handleConfirmCreateCustomTeam}
