@@ -214,4 +214,57 @@ assert.equal(testInitSim.vscLapsRemaining, 0);
 assert.equal(typeof testInitSim.vscLapsRemaining, 'number');
 assert.equal(testInitSim.raceControl, 'GREEN');
 
+// Task 2 (VSC): Physics, speed capping, DRS lockout, lap decrement
+const vscSim = createInitialRaceState(DEFAULT_DB.teams, DEFAULT_DB.drivers, [], {
+  track: track0,
+  distancePreset: 'SPRINT_25',
+});
+vscSim.raceControl = 'VIRTUAL_SAFETY_CAR';
+vscSim.vscLapsRemaining = 2;
+vscSim.cars[0].distanceOnLapMeters = 100;
+vscSim.cars[0].totalDistanceMeters = 100;
+vscSim.cars[1].distanceOnLapMeters = 80;
+vscSim.cars[1].totalDistanceMeters = 80;
+vscSim.cars[1].gapToAheadSec = 0.5;
+vscSim.cars[1].hasDrsAvailable = true;
+
+const steppedVsc = stepRaceSimulation(
+  vscSim,
+  track0,
+  DEFAULT_DB.teams,
+  DEFAULT_DB.drivers,
+  0.1,
+  'corsa-rossa'
+);
+assert.equal(steppedVsc.raceControl, 'VIRTUAL_SAFETY_CAR');
+assert.ok(
+  steppedVsc.cars[0].currentSpeedMs <= track0.segments[0].referenceSpeedMs * 0.65,
+  `Expected VSC speed <= ${track0.segments[0].referenceSpeedMs * 0.65}, got ${steppedVsc.cars[0].currentSpeedMs}`
+);
+assert.equal(steppedVsc.cars[1].isDrsActive, false);
+
+// Test VSC lap decrement when leader crosses finish line
+const vscLapEndSim = {
+  ...steppedVsc,
+  vscLapsRemaining: 1,
+  cars: steppedVsc.cars.map((c, i) =>
+    i === 0
+      ? { ...c, distanceOnLapMeters: track0.lengthMeters - 1, totalDistanceMeters: track0.lengthMeters - 1 }
+      : c
+  ),
+};
+const steppedVscEnd = stepRaceSimulation(
+  vscLapEndSim,
+  track0,
+  DEFAULT_DB.teams,
+  DEFAULT_DB.drivers,
+  0.1,
+  'corsa-rossa'
+);
+assert.equal(steppedVscEnd.raceControl, 'GREEN');
+assert.equal(steppedVscEnd.vscLapsRemaining, 0);
+assert.ok(steppedVscEnd.radioLog.some((m) => m.includes('VSC TERMINATA')));
+
+
+
 

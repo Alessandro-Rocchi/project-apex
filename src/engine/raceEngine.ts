@@ -593,6 +593,8 @@ export function stepRaceSimulation(
         carAhead && car.gapToAheadSec > 0.55
           ? Math.min(rawSpeedMs, 64)
           : Math.min(rawSpeedMs, 48);
+    } else if (raceControl === 'VIRTUAL_SAFETY_CAR') {
+      rawSpeedMs = Math.min(rawSpeedMs * 0.62, segment.referenceSpeedMs * 0.62);
     } else if (raceControl === 'YELLOW') {
       rawSpeedMs = Math.min(rawSpeedMs, segment.referenceSpeedMs * 0.78);
     }
@@ -735,6 +737,14 @@ export function stepRaceSimulation(
             raceControl = 'GREEN';
             newRadioMessages.push(
               '[SAFETY CAR]: La Safety Car rientra ai box in questo giro! Ripristino Bandiera Verde.'
+            );
+          }
+        } else if (raceControl === 'VIRTUAL_SAFETY_CAR') {
+          vscLapsRemaining -= 1;
+          if (vscLapsRemaining <= 0) {
+            raceControl = 'GREEN';
+            newRadioMessages.push(
+              '[VSC TERMINATA]: Bandiera Verde! Ripristino del ritmo di gara.'
             );
           }
         }
