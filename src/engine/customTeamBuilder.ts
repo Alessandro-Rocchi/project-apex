@@ -88,8 +88,27 @@ export function executeTeamReplacement(
   input: CustomTeamInput,
   customTeamId?: string
 ): { updatedDb: GameDatabase; newTeam: Team } {
+  if (input.primaryDriverId === input.secondaryDriverId) {
+    throw new Error('Primary and Secondary drivers must be distinct.');
+  }
+
+  // Generate / resolve custom team ID with collision check
+  const cleanSlug = input.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+  let resolvedId = customTeamId || (cleanSlug ? `custom-${cleanSlug}` : 'custom-team');
+
+  // Verify that the generated team id is not already used by another team in db.teams (excluding replacedTeamId)
+  if (db.teams.some((t) => t.id === resolvedId && t.id !== input.replacedTeamId)) {
+    resolvedId = `${resolvedId}-${Date.now().toString(36)}`;
+    while (db.teams.some((t) => t.id === resolvedId && t.id !== input.replacedTeamId)) {
+      resolvedId = `${resolvedId}-${Math.random().toString(36).slice(2, 6)}`;
+    }
+  }
+
   const updatedDb = structuredClone(db);
-  const newTeam = buildCustomTeam(input, customTeamId);
+  const newTeam = buildCustomTeam(input, resolvedId);
 
   // Replaces the team whose id === input.replacedTeamId with newTeam in teams
   const teamIdx = updatedDb.teams.findIndex((t) => t.id === input.replacedTeamId);
@@ -143,6 +162,19 @@ export function executeTeamReplacement(
 
     driver.teamId = newTeam.id;
     driver.role = sel.role;
+  }
+
+  // If replaced team's reserve driver was promoted to titular seat, newTeam may have no RESERVE.
+  // In that case, preserve a reserve driver by assigning one displaced titular driver as RESERVE.
+  const hasReserve = updatedDb.drivers.some(
+    (d) => d.teamId === newTeam.id && d.role === 'RESERVE'
+  );
+  if (!hasReserve && displacedTitularQueue.length > 0) {
+    const reserveCandidate = displacedTitularQueue.shift();
+    if (reserveCandidate) {
+      reserveCandidate.teamId = newTeam.id;
+      reserveCandidate.role = 'RESERVE';
+    }
   }
 
   // Any remaining displaced titular drivers become free agents

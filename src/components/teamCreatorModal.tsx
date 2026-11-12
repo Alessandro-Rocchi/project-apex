@@ -75,6 +75,9 @@ export default function TeamCreatorModal({
   const [primaryDriverId, setPrimaryDriverId] = useState<string>(initialD1 ?? '');
   const [secondaryDriverId, setSecondaryDriverId] = useState<string>(initialD2 ?? '');
 
+  const safeColorHex = !colorHex || !colorHex.startsWith('#') ? '#059669' : colorHex;
+  const safeAccentHex = !accentHex || !accentHex.startsWith('#') ? '#FBBF24' : accentHex;
+
   // Close on Escape key press
   useEffect(() => {
     if (!isOpen) return;
@@ -103,8 +106,8 @@ export default function TeamCreatorModal({
     return buildCustomTeam({
       name: name.trim() || 'Scuderia Apex',
       nationality,
-      colorHex,
-      accentHex,
+      colorHex: safeColorHex,
+      accentHex: safeAccentHex,
       tier,
       replacedTeamId: replacedTeamId || currentDb.teams[0]?.id || '',
       primaryDriverId: primaryDriverId || '',
@@ -113,8 +116,8 @@ export default function TeamCreatorModal({
   }, [
     name,
     nationality,
-    colorHex,
-    accentHex,
+    safeColorHex,
+    safeAccentHex,
     tier,
     replacedTeamId,
     primaryDriverId,
@@ -156,8 +159,8 @@ export default function TeamCreatorModal({
     onConfirm({
       name: trimmedName,
       nationality,
-      colorHex,
-      accentHex,
+      colorHex: safeColorHex,
+      accentHex: safeAccentHex,
       tier,
       replacedTeamId: replacedTeamId || currentDb.teams[0]?.id || '',
       primaryDriverId,
@@ -242,7 +245,7 @@ export default function TeamCreatorModal({
                     <div className="flex items-center gap-1.5">
                       <input
                         type="color"
-                        value={colorHex}
+                        value={safeColorHex.length === 7 ? safeColorHex : '#059669'}
                         onChange={(e) => setColorHex(e.target.value)}
                         className="w-8 h-8 rounded border border-slate-700 bg-transparent cursor-pointer p-0"
                       />
@@ -262,7 +265,7 @@ export default function TeamCreatorModal({
                     <div className="flex items-center gap-1.5">
                       <input
                         type="color"
-                        value={accentHex}
+                        value={safeAccentHex.length === 7 ? safeAccentHex : '#FBBF24'}
                         onChange={(e) => setAccentHex(e.target.value)}
                         className="w-8 h-8 rounded border border-slate-700 bg-transparent cursor-pointer p-0"
                       />
@@ -286,8 +289,8 @@ export default function TeamCreatorModal({
               <svg width="40" height="46" viewBox="0 0 28 32" className="drop-shadow-lg">
                 <polygon
                   points="14,1 27,7 24,24 14,31 4,24 1,7"
-                  fill={colorHex}
-                  stroke={accentHex}
+                  fill={safeColorHex}
+                  stroke={safeAccentHex}
                   strokeWidth="2"
                 />
               </svg>

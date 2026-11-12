@@ -621,6 +621,117 @@ for (const team of doubleSwapReplacement.updatedDb.teams) {
 }
 assert.equal(validateCustomDatabase(doubleSwapReplacement.updatedDb).valid, true);
 
+// 7. Defensive validation test: Duplicate driver IDs rejected
+assert.throws(
+  () =>
+    executeTeamReplacement(DEFAULT_DB, {
+      name: 'Duplicate Drivers GP',
+      nationality: 'Italia',
+      colorHex: '#123456',
+      accentHex: '#654321',
+      tier: 3,
+      replacedTeamId: 'corsa-rossa',
+      primaryDriverId: 'drv-valenti',
+      secondaryDriverId: 'drv-valenti',
+    }),
+  /Primary and Secondary drivers must be distinct/
+);
+
+// 8. Prevent Team ID Collisions test
+const collidingDb = {
+  ...DEFAULT_DB,
+  teams: [
+    ...DEFAULT_DB.teams,
+    {
+      ...DEFAULT_DB.teams[0],
+      id: 'custom-duplicate-team',
+      name: 'Duplicate Team',
+    },
+  ],
+};
+const collisionResult = executeTeamReplacement(collidingDb, {
+  name: 'Duplicate Team',
+  nationality: 'Italia',
+  colorHex: '#123456',
+  accentHex: '#654321',
+  tier: 3,
+  replacedTeamId: 'corsa-rossa',
+  primaryDriverId: 'drv-korsakov',
+  secondaryDriverId: 'drv-almeida',
+});
+assert.notEqual(collisionResult.newTeam.id, 'custom-duplicate-team');
+assert.ok(collisionResult.newTeam.id.startsWith('custom-duplicate-team-'));
+
+// 9. Double seat-swap from the SAME rival team (poaching both Silberpfeil primary & secondary)
+const sameTeamDoubleSwap = executeTeamReplacement(DEFAULT_DB, {
+  name: 'Apex Dual Poach',
+  nationality: 'Germania',
+  colorHex: '#003366',
+  accentHex: '#FFCC00',
+  tier: 1,
+  replacedTeamId: 'corsa-rossa',
+  primaryDriverId: 'drv-richter', // Silberpfeil PRIMARY
+  secondaryDriverId: 'drv-brandt', // Silberpfeil SECONDARY
+});
+
+// Silberpfeil has 3 drivers: 2 titulars (displaced Valenti as PRIMARY, displaced Moretti as SECONDARY) and 1 reserve
+const silberAfterDoubleSwap = sameTeamDoubleSwap.updatedDb.drivers.filter(
+  (d) => d.teamId === 'silberpfeil'
+);
+assert.equal(silberAfterDoubleSwap.length, 3);
+const silberP1 = silberAfterDoubleSwap.find((d) => d.role === 'PRIMARY')!;
+const silberP2 = silberAfterDoubleSwap.find((d) => d.role === 'SECONDARY')!;
+const silberRes = silberAfterDoubleSwap.find((d) => d.role === 'RESERVE')!;
+assert.equal(silberP1.id, 'drv-valenti');
+assert.equal(silberP2.id, 'drv-moretti');
+assert.equal(silberRes.id, 'drv-weber');
+
+// Custom team has Richter (PRIMARY), Brandt (SECONDARY), and Bellini (RESERVE)
+const newTeamDrivers = sameTeamDoubleSwap.updatedDb.drivers.filter(
+  (d) => d.teamId === sameTeamDoubleSwap.newTeam.id
+);
+assert.equal(newTeamDrivers.length, 3);
+assert.equal(newTeamDrivers.find((d) => d.role === 'PRIMARY')?.id, 'drv-richter');
+assert.equal(newTeamDrivers.find((d) => d.role === 'SECONDARY')?.id, 'drv-brandt');
+assert.equal(newTeamDrivers.find((d) => d.role === 'RESERVE')?.id, 'drv-bellini');
+assert.equal(validateCustomDatabase(sameTeamDoubleSwap.updatedDb).valid, true);
+
+// 10. Reserve promotion edge case: selecting replaced team's reserve driver as titular
+const reservePromotionReplacement = executeTeamReplacement(DEFAULT_DB, {
+  name: 'Apex Promoted Reserve',
+  nationality: 'Italia',
+  colorHex: '#CC0000',
+  accentHex: '#FFFFFF',
+  tier: 2,
+  replacedTeamId: 'corsa-rossa',
+  primaryDriverId: 'drv-bellini', // Corsa Rossa RESERVE promoted to PRIMARY
+  secondaryDriverId: 'drv-korsakov', // Free agent
+});
+
+// Verify newTeam still has 1 reserve driver and 2 titular drivers
+const promoTeamDrivers = reservePromotionReplacement.updatedDb.drivers.filter(
+  (d) => d.teamId === reservePromotionReplacement.newTeam.id
+);
+const promoPrimary = promoTeamDrivers.filter((d) => d.role === 'PRIMARY');
+const promoSecondary = promoTeamDrivers.filter((d) => d.role === 'SECONDARY');
+const promoReserve = promoTeamDrivers.filter((d) => d.role === 'RESERVE');
+
+assert.equal(promoPrimary.length, 1);
+assert.equal(promoPrimary[0].id, 'drv-bellini');
+assert.equal(promoSecondary.length, 1);
+assert.equal(promoSecondary[0].id, 'drv-korsakov');
+assert.equal(promoReserve.length, 1);
+assert.equal(promoReserve[0].id, 'drv-valenti'); // Displaced titular preserved as RESERVE
+assert.equal(promoTeamDrivers.length, 3);
+
+// The other displaced titular (Moretti) becomes a free agent
+const morettiAfterPromo = reservePromotionReplacement.updatedDb.drivers.find(
+  (d) => d.id === 'drv-moretti'
+)!;
+assert.equal(morettiAfterPromo.teamId, null);
+assert.equal(morettiAfterPromo.role, 'FREE_AGENT');
+assert.equal(validateCustomDatabase(reservePromotionReplacement.updatedDb).valid, true);
+
 // Task 3: Integration Tests (Custom Team Career Initialization, Sponsor Assignment, Modding Export/Reset)
 const customCreation = executeTeamReplacement(DEFAULT_DB, {
   name: 'Scuderia Futura',
@@ -716,6 +827,9 @@ assert.equal(resetCareer.currentRoundIndex, 0);
 // Task 4: Comprehensive End-to-End Simulation Tests (Custom Team in Qualifying & Race Engines)
 const customSimReplacement = executeTeamReplacement(DEFAULT_DB, {
   name: 'Apex Hyperion',
+  nationality: 'Francia',
+  colorHex: '#10B981',
+  accentHex: '#F59E0B',
   tier: 1,
   replacedTeamId: 'lumiere-equipe',
   primaryDriverId: DEFAULT_DB.drivers[0].id,
@@ -771,15 +885,3 @@ const customSteppedCars = currentSim.cars.filter((c) => c.teamId === newTeam.id)
 assert.equal(customSteppedCars.length, 2);
 assert.ok(customSteppedCars.every((c) => c.currentSpeedMs > 0));
 assert.ok(customSteppedCars.every((c) => c.totalDistanceMeters > 0));
-
-
-
-
-
-
-
-
-
-
-
-
