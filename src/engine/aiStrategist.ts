@@ -114,10 +114,12 @@ export function evaluateAiPitStrategy(
     };
   }
 
-  // C. Opportunità Safety Car (sosta scontata del 35%)
+  // C. Opportunità Safety Car / Virtual Safety Car (sosta scontata)
+  const isNeutralized =
+    snapshot.raceControl === 'SAFETY_CAR' || snapshot.raceControl === 'VIRTUAL_SAFETY_CAR';
   if (
-    snapshot.raceControl === 'SAFETY_CAR' &&
-    car.tyreWear < 0.56 &&
+    isNeutralized &&
+    car.tyreWear < 0.60 &&
     remainingLaps >= 4 &&
     car.tyreAgeLaps >= 3
   ) {

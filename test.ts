@@ -69,6 +69,7 @@ import {
   getScaledTrackLaps,
   stepRaceSimulation,
 } from './src/engine/raceEngine.ts';
+import { evaluateAiPitStrategy } from './src/engine/aiStrategist.ts';
 
 const track0 = DEFAULT_DB.tracks[0];
 const scaled25 = getScaledTrackLaps(track0, 'SPRINT_25');
@@ -292,6 +293,21 @@ const steppedIncident = stepRaceSimulation(incidentSim, track0, minRelTeams, DEF
 assert.equal(steppedIncident.raceControl, 'VIRTUAL_SAFETY_CAR');
 assert.equal(steppedIncident.vscLapsRemaining, 2);
 assert.ok(steppedIncident.radioLog.some((m) => m.includes('VSC ATTIVATA')));
+
+// Task 4 (VSC): AI Strategic Opportunism under VSC
+const aiCarMock = {
+  ...testInitSim.cars[2],
+  tyreWear: 0.55,
+  tyreAgeLaps: 5,
+};
+const aiSimSnapshot = {
+  ...testInitSim,
+  raceControl: 'VIRTUAL_SAFETY_CAR' as const,
+  vscLapsRemaining: 2,
+};
+const aiDecision = evaluateAiPitStrategy(aiCarMock, aiSimSnapshot, 10);
+assert.equal(aiDecision.requestPit, true);
+
 
 
 
