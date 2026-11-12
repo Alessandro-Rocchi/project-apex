@@ -410,6 +410,218 @@ const greenFuel = greenSim.cars[0].fuelKg - steppedGreen.cars[0].fuelKg;
 const vscFuel = vscSim.cars[0].fuelKg - steppedVscRun.cars[0].fuelKg;
 assert.ok(Math.abs(vscFuel - greenFuel * 0.40) < 1e-4, `Expected VSC fuel ~0.40x green, got ${vscFuel / greenFuel}`);
 
+// ==========================================
+// Custom Team Creator (Task 1 Engine Tests)
+// ==========================================
+import {
+  buildCustomTeam,
+  executeTeamReplacement,
+  getTierPresets,
+  pickRandomDriversForTier,
+} from './src/engine/customTeamBuilder.ts';
+
+// 1. getTierPresets tests for all 5 tiers
+const presetT1 = getTierPresets(1);
+assert.equal(presetT1.budgetMillions, 48.0);
+assert.deepEqual(presetT1.facilities, { factory: 3, windTunnel: 3, simulator: 3 });
+assert.equal(presetT1.components.powerUnit.performance, 93);
+assert.equal(presetT1.components.powerUnit.reliability, 91);
+
+const presetT2 = getTierPresets(2);
+assert.equal(presetT2.budgetMillions, 40.0);
+assert.deepEqual(presetT2.facilities, { factory: 2, windTunnel: 3, simulator: 2 });
+assert.equal(presetT2.components.frontWing.performance, 89);
+assert.equal(presetT2.components.frontWing.reliability, 90);
+
+const presetT3 = getTierPresets(3);
+assert.equal(presetT3.budgetMillions, 33.0);
+assert.deepEqual(presetT3.facilities, { factory: 2, windTunnel: 2, simulator: 2 });
+assert.equal(presetT3.components.rearWing.performance, 85);
+assert.equal(presetT3.components.rearWing.reliability, 89);
+
+const presetT4 = getTierPresets(4);
+assert.equal(presetT4.budgetMillions, 26.0);
+assert.deepEqual(presetT4.facilities, { factory: 1, windTunnel: 2, simulator: 1 });
+assert.equal(presetT4.components.floor.performance, 81);
+assert.equal(presetT4.components.floor.reliability, 87);
+
+const presetT5 = getTierPresets(5);
+assert.equal(presetT5.budgetMillions, 20.0);
+assert.deepEqual(presetT5.facilities, { factory: 1, windTunnel: 1, simulator: 1 });
+assert.equal(presetT5.components.suspension.performance, 77);
+assert.equal(presetT5.components.suspension.reliability, 85);
+
+// 2. buildCustomTeam tests across tiers & id slug generation
+const customT1 = buildCustomTeam({
+  name: 'Apex Speed GP',
+  nationality: 'Italia',
+  colorHex: '#FF0000',
+  accentHex: '#00FF00',
+  tier: 1,
+  replacedTeamId: 'corsa-rossa',
+  primaryDriverId: 'drv-korsakov',
+  secondaryDriverId: 'drv-almeida',
+});
+assert.equal(customT1.id, 'custom-apex-speed-gp');
+assert.equal(customT1.name, 'Apex Speed GP');
+assert.equal(customT1.tier, 1);
+assert.equal(customT1.budgetMillions, 48.0);
+assert.equal(customT1.power, 93);
+assert.equal(customT1.downforce, 93);
+assert.equal(customT1.overallReliability, 91);
+
+const customWithExplicitId = buildCustomTeam(
+  {
+    name: 'Custom Team',
+    nationality: 'Svizzera',
+    colorHex: '#123456',
+    accentHex: '#654321',
+    tier: 3,
+    replacedTeamId: 'nordic-volt',
+    primaryDriverId: 'drv-korsakov',
+    secondaryDriverId: 'drv-almeida',
+  },
+  'my-custom-id'
+);
+assert.equal(customWithExplicitId.id, 'my-custom-id');
+assert.equal(customWithExplicitId.power, 85);
+
+// Fallback slug test for punctuation-only name
+const customFallback = buildCustomTeam({
+  name: '---',
+  nationality: 'Monaco',
+  colorHex: '#000000',
+  accentHex: '#FFFFFF',
+  tier: 5,
+  replacedTeamId: 'nordic-volt',
+  primaryDriverId: 'drv-korsakov',
+  secondaryDriverId: 'drv-almeida',
+});
+assert.equal(customFallback.id, 'custom-team');
+
+// 3. pickRandomDriversForTier tests
+const [t1D1, t1D2] = pickRandomDriversForTier(DEFAULT_DB.drivers, 1);
+assert.notEqual(t1D1, t1D2);
+const drv1Obj = DEFAULT_DB.drivers.find((d) => d.id === t1D1)!;
+const drv2Obj = DEFAULT_DB.drivers.find((d) => d.id === t1D2)!;
+assert.ok(drv1Obj.pace >= 90);
+assert.ok(drv2Obj.pace >= 90);
+
+const [t5D1, t5D2] = pickRandomDriversForTier(DEFAULT_DB.drivers, 5);
+assert.notEqual(t5D1, t5D2);
+const drvT5Obj1 = DEFAULT_DB.drivers.find((d) => d.id === t5D1)!;
+const drvT5Obj2 = DEFAULT_DB.drivers.find((d) => d.id === t5D2)!;
+assert.ok(drvT5Obj1.pace <= 80);
+assert.ok(drvT5Obj2.pace <= 80);
+
+// 4. executeTeamReplacement with Free Agent drivers
+const freeAgentReplacement = executeTeamReplacement(DEFAULT_DB, {
+  name: 'Modena Corse',
+  nationality: 'Italia',
+  colorHex: '#EE1111',
+  accentHex: '#FFDD00',
+  tier: 2,
+  replacedTeamId: 'corsa-rossa',
+  primaryDriverId: 'drv-korsakov',
+  secondaryDriverId: 'drv-almeida',
+});
+
+// Teams verification
+assert.equal(freeAgentReplacement.updatedDb.teams.length, DEFAULT_DB.teams.length);
+assert.equal(
+  freeAgentReplacement.updatedDb.teams.some((t) => t.id === 'corsa-rossa'),
+  false
+);
+const createdTeam = freeAgentReplacement.updatedDb.teams.find((t) => t.id === 'custom-modena-corse');
+assert.ok(createdTeam);
+assert.equal(createdTeam.id, freeAgentReplacement.newTeam.id);
+
+// Drivers verification
+const modenaD1 = freeAgentReplacement.updatedDb.drivers.find((d) => d.id === 'drv-korsakov')!;
+const modenaD2 = freeAgentReplacement.updatedDb.drivers.find((d) => d.id === 'drv-almeida')!;
+assert.equal(modenaD1.teamId, 'custom-modena-corse');
+assert.equal(modenaD1.role, 'PRIMARY');
+assert.equal(modenaD2.teamId, 'custom-modena-corse');
+assert.equal(modenaD2.role, 'SECONDARY');
+
+// Reserve from replaced team reassigned to custom team
+const modenaReserve = freeAgentReplacement.updatedDb.drivers.find((d) => d.id === 'drv-bellini')!;
+assert.equal(modenaReserve.teamId, 'custom-modena-corse');
+assert.equal(modenaReserve.role, 'RESERVE');
+
+// Displaced titular drivers are now free agents
+const displacedValenti = freeAgentReplacement.updatedDb.drivers.find((d) => d.id === 'drv-valenti')!;
+const displacedMoretti = freeAgentReplacement.updatedDb.drivers.find((d) => d.id === 'drv-moretti')!;
+assert.equal(displacedValenti.teamId, null);
+assert.equal(displacedValenti.role, 'FREE_AGENT');
+assert.equal(displacedMoretti.teamId, null);
+assert.equal(displacedMoretti.role, 'FREE_AGENT');
+
+// DB validity check
+assert.equal(validateCustomDatabase(freeAgentReplacement.updatedDb).valid, true);
+
+// 5. executeTeamReplacement with seat-swap from rival team (poaching Silberpfeil primary)
+const rivalSwapReplacement = executeTeamReplacement(DEFAULT_DB, {
+  name: 'Apex Stars',
+  nationality: 'Germania',
+  colorHex: '#0055AA',
+  accentHex: '#FFFFFF',
+  tier: 1,
+  replacedTeamId: 'corsa-rossa',
+  primaryDriverId: 'drv-richter', // Silberpfeil primary
+  secondaryDriverId: 'drv-korsakov', // Free agent
+});
+
+// Richter now drives for Apex Stars as PRIMARY
+const richter = rivalSwapReplacement.updatedDb.drivers.find((d) => d.id === 'drv-richter')!;
+assert.equal(richter.teamId, 'custom-apex-stars');
+assert.equal(richter.role, 'PRIMARY');
+
+// Silberpfeil retained 2 titular drivers: Brandt remains SECONDARY, displaced Valenti took PRIMARY seat
+const silberDrivers = rivalSwapReplacement.updatedDb.drivers.filter((d) => d.teamId === 'silberpfeil');
+assert.equal(silberDrivers.length, 3); // PRIMARY + SECONDARY + RESERVE
+const silberPrimary = silberDrivers.find((d) => d.role === 'PRIMARY')!;
+assert.equal(silberPrimary.id, 'drv-valenti'); // Displaced titular Valenti took the vacant seat
+const silberSecondary = silberDrivers.find((d) => d.role === 'SECONDARY')!;
+assert.equal(silberSecondary.id, 'drv-brandt');
+
+// Other displaced driver (Moretti) is now FREE_AGENT
+const morettiAfterSwap = rivalSwapReplacement.updatedDb.drivers.find((d) => d.id === 'drv-moretti')!;
+assert.equal(morettiAfterSwap.teamId, null);
+assert.equal(morettiAfterSwap.role, 'FREE_AGENT');
+
+// DB validity check
+assert.equal(validateCustomDatabase(rivalSwapReplacement.updatedDb).valid, true);
+
+// 6. executeTeamReplacement with TWO rival drivers poached (Silberpfeil & Apex Tauron)
+const doubleSwapReplacement = executeTeamReplacement(DEFAULT_DB, {
+  name: 'Super Team',
+  nationality: 'Francia',
+  colorHex: '#333333',
+  accentHex: '#EEEEEE',
+  tier: 1,
+  replacedTeamId: 'corsa-rossa',
+  primaryDriverId: 'drv-richter', // Silberpfeil primary
+  secondaryDriverId: 'drv-vanderberg', // Apex Tauron primary
+});
+
+const displaced1 = doubleSwapReplacement.updatedDb.drivers.find((d) => d.id === 'drv-valenti')!;
+const displaced2 = doubleSwapReplacement.updatedDb.drivers.find((d) => d.id === 'drv-moretti')!;
+assert.equal(displaced1.teamId, 'silberpfeil');
+assert.equal(displaced1.role, 'PRIMARY');
+assert.equal(displaced2.teamId, 'apex-tauron');
+assert.equal(displaced2.role, 'PRIMARY');
+
+// Validate all teams have exactly 2 titular drivers
+for (const team of doubleSwapReplacement.updatedDb.teams) {
+  const titular = doubleSwapReplacement.updatedDb.drivers.filter(
+    (d) => d.teamId === team.id && (d.role === 'PRIMARY' || d.role === 'SECONDARY')
+  );
+  assert.equal(titular.length, 2, `Team ${team.id} must have 2 titular drivers`);
+}
+assert.equal(validateCustomDatabase(doubleSwapReplacement.updatedDb).valid, true);
+
+
 
 
 
