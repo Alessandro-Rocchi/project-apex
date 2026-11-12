@@ -5,6 +5,7 @@ import type {
   TyreCompound,
   WeatherCondition,
 } from '../types/telemetry.ts';
+import { INITIAL_TRACKS } from '../data/defaultDb.ts';
 import { deriveCarPhysics } from './carPhysicsMapper.ts';
 
 export type QualifyingStage = 'Q1' | 'Q2' | 'Q3' | 'FINISHED';
@@ -35,6 +36,7 @@ export interface QualifyingDriverResult {
 
 export interface QualifyingSessionState {
   stage: QualifyingStage;
+  isCompleted: boolean;
   weather: WeatherCondition;
   trackWaterLevel: number;
   results: QualifyingDriverResult[];
@@ -94,6 +96,7 @@ export function createQualifyingSession(
 
   return {
     stage: 'Q1',
+    isCompleted: false,
     weather,
     trackWaterLevel,
     results,
@@ -236,6 +239,7 @@ export function runQualifyingStage(
   return {
     ...state,
     stage: nextStage,
+    isCompleted: nextStage === 'FINISHED',
     results: finalOrdered,
   };
 }
@@ -244,8 +248,8 @@ export function runFullQualifyingAuto(
   state: QualifyingSessionState,
   teams: Team[],
   drivers: Driver[],
-  track: TrackData,
-  setupConfidences: Record<string, number>
+  track: TrackData = INITIAL_TRACKS[0],
+  setupConfidences: Record<string, number> = {}
 ): QualifyingSessionState {
   let curr = state;
   while (curr.stage !== 'FINISHED') {

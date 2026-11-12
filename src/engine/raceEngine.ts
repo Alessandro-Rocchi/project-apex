@@ -29,6 +29,7 @@ export interface PreRaceCarConfig {
 
 export interface RaceSimulationSnapshot {
   raceTimeSec: number;
+  elapsedTimeSec: number;
   currentLap: number;
   totalLaps: number;
   distancePreset: RaceDistancePreset;
@@ -267,6 +268,7 @@ export function createInitialRaceState(
 
   return {
     raceTimeSec: 0,
+    elapsedTimeSec: 0,
     currentLap: 1,
     totalLaps: scaled.totalLaps,
     distancePreset,
@@ -890,6 +892,7 @@ export function stepRaceSimulation(
 
   return {
     raceTimeSec: newRaceTimeSec,
+    elapsedTimeSec: newRaceTimeSec,
     currentLap: maxLap,
     totalLaps,
     distancePreset: prev.distancePreset,

@@ -1371,12 +1371,14 @@ export default function App() {
         </div>
       )}
 
-      <TeamCreatorModal
-        isOpen={isTeamCreatorOpen}
-        currentDb={career.db}
-        onClose={() => setIsTeamCreatorOpen(false)}
-        onConfirm={handleConfirmCreateCustomTeam}
-      />
+      {isTeamCreatorOpen && (
+        <TeamCreatorModal
+          isOpen={isTeamCreatorOpen}
+          currentDb={career.db}
+          onClose={() => setIsTeamCreatorOpen(false)}
+          onConfirm={handleConfirmCreateCustomTeam}
+        />
+      )}
     </div>
   );
 }

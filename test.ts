@@ -713,6 +713,66 @@ assert.equal(resetCareer.season, 1);
 assert.equal(resetCareer.currentDay, 1);
 assert.equal(resetCareer.currentRoundIndex, 0);
 
+// Task 4: Comprehensive End-to-End Simulation Tests (Custom Team in Qualifying & Race Engines)
+const customSimReplacement = executeTeamReplacement(DEFAULT_DB, {
+  name: 'Apex Hyperion',
+  tier: 1,
+  replacedTeamId: 'lumiere-equipe',
+  primaryDriverId: DEFAULT_DB.drivers[0].id,
+  secondaryDriverId: DEFAULT_DB.drivers[2].id,
+});
+
+const customDb = customSimReplacement.updatedDb;
+const newTeam = customSimReplacement.newTeam;
+
+// 1. Qualifying Session
+const qualiSession = createQualifyingSession(customDb.teams, customDb.drivers, 'DRY');
+const autoQuali = runFullQualifyingAuto(qualiSession, customDb.teams, customDb.drivers);
+assert.equal(autoQuali.isCompleted, true);
+assert.equal(autoQuali.stage, 'FINISHED');
+assert.equal(autoQuali.results.length, 20);
+
+// Assert custom team drivers are present in qualifying results
+const customQualiResults = autoQuali.results.filter((r) => r.teamId === newTeam.id);
+assert.equal(customQualiResults.length, 2);
+assert.ok(customQualiResults.some((r) => r.driverId === DEFAULT_DB.drivers[0].id));
+assert.ok(customQualiResults.some((r) => r.driverId === DEFAULT_DB.drivers[2].id));
+
+// 2. Race Simulation
+const track = customDb.tracks[0];
+const race = createInitialRaceState(customDb.teams, customDb.drivers, [], {
+  track,
+  distancePreset: 'SPRINT_25',
+  initialWeather: 'DRY',
+});
+assert.equal(race.cars.length, 20);
+
+// Assert custom team cars exist on the race grid
+const customRaceGridCars = race.cars.filter((c) => c.teamId === newTeam.id);
+assert.equal(customRaceGridCars.length, 2);
+
+// Step race simulation for multiple ticks
+let currentSim = race;
+for (let i = 0; i < 50; i++) {
+  currentSim = stepRaceSimulation(
+    currentSim,
+    track,
+    customDb.teams,
+    customDb.drivers,
+    0.1,
+    newTeam.id
+  );
+}
+assert.equal(currentSim.cars.length, 20);
+assert.ok(currentSim.elapsedTimeSec > 0);
+
+// Assert custom team cars operate normally
+const customSteppedCars = currentSim.cars.filter((c) => c.teamId === newTeam.id);
+assert.equal(customSteppedCars.length, 2);
+assert.ok(customSteppedCars.every((c) => c.currentSpeedMs > 0));
+assert.ok(customSteppedCars.every((c) => c.totalDistanceMeters > 0));
+
+
 
 
 

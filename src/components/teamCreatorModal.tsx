@@ -56,31 +56,24 @@ export default function TeamCreatorModal({
   onClose,
   onConfirm,
 }: TeamCreatorModalProps): React.JSX.Element | null {
+  const lowestTierTeam = useMemo(
+    () => [...currentDb.teams].sort((a, b) => b.tier - a.tier)[0],
+    [currentDb.teams]
+  );
+  const initialReplaced = lowestTierTeam?.id ?? currentDb.teams[0]?.id ?? '';
+  const [initialD1, initialD2] = useMemo(
+    () => pickRandomDriversForTier(currentDb.drivers, 3),
+    [currentDb.drivers]
+  );
+
   const [name, setName] = useState('Scuderia Apex');
   const [nationality, setNationality] = useState('Italia');
   const [colorHex, setColorHex] = useState('#059669');
   const [accentHex, setAccentHex] = useState('#FBBF24');
   const [tier, setTier] = useState<1 | 2 | 3 | 4 | 5>(3);
-  const [replacedTeamId, setReplacedTeamId] = useState<string>('');
-  const [primaryDriverId, setPrimaryDriverId] = useState<string>('');
-  const [secondaryDriverId, setSecondaryDriverId] = useState<string>('');
-
-  // Initialize or synchronize default selection when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      if (!name) setName('Scuderia Apex');
-      const lowestTierTeam = [...currentDb.teams].sort((a, b) => b.tier - a.tier)[0];
-      const initialReplaced = lowestTierTeam?.id ?? currentDb.teams[0]?.id ?? '';
-      if (!replacedTeamId || !currentDb.teams.some((t) => t.id === replacedTeamId)) {
-        setReplacedTeamId(initialReplaced);
-      }
-      if (!primaryDriverId || !secondaryDriverId || primaryDriverId === secondaryDriverId) {
-        const [d1, d2] = pickRandomDriversForTier(currentDb.drivers, tier);
-        setPrimaryDriverId(d1);
-        setSecondaryDriverId(d2);
-      }
-    }
-  }, [isOpen, currentDb]);
+  const [replacedTeamId, setReplacedTeamId] = useState<string>(initialReplaced);
+  const [primaryDriverId, setPrimaryDriverId] = useState<string>(initialD1 ?? '');
+  const [secondaryDriverId, setSecondaryDriverId] = useState<string>(initialD2 ?? '');
 
   // Close on Escape key press
   useEffect(() => {
