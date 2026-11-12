@@ -308,6 +308,55 @@ const aiSimSnapshot = {
 const aiDecision = evaluateAiPitStrategy(aiCarMock, aiSimSnapshot, 10);
 assert.equal(aiDecision.requestPit, true);
 
+// Task 6 (Review Focus): Edge cases
+// 1. AI should not pit on the final lap under VSC
+const aiFinalLapDecision = evaluateAiPitStrategy(aiCarMock, aiSimSnapshot, 1);
+assert.equal(aiFinalLapDecision.requestPit, false);
+
+// 2. Cars in pit lane maintain pit lane speed (22.2 m/s) during VSC
+const pitCarSim = {
+  ...vscSim,
+  cars: vscSim.cars.map((c, i) =>
+    i === 0 ? { ...c, isInPitLane: true, pitStopTimerSec: 2.0 } : c
+  ),
+};
+const steppedPitSim = stepRaceSimulation(
+  pitCarSim,
+  track0,
+  DEFAULT_DB.teams,
+  DEFAULT_DB.drivers,
+  0.1,
+  'corsa-rossa'
+);
+assert.equal(steppedPitSim.cars[0].currentSpeedMs, 22.2);
+
+// 3. Gap preservation without artificial bunching
+const gapSim = {
+  ...vscSim,
+  cars: vscSim.cars.map((c, i) =>
+    i === 0
+      ? { ...c, distanceOnLapMeters: 500, totalDistanceMeters: 500 }
+      : i === 1
+      ? { ...c, distanceOnLapMeters: 300, totalDistanceMeters: 300 }
+      : c
+  ),
+};
+const steppedGapSim = stepRaceSimulation(
+  gapSim,
+  track0,
+  DEFAULT_DB.teams,
+  DEFAULT_DB.drivers,
+  0.1,
+  'corsa-rossa'
+);
+const distanceDelta =
+  steppedGapSim.cars[0].totalDistanceMeters - steppedGapSim.cars[1].totalDistanceMeters;
+assert.ok(
+  distanceDelta > 190 && distanceDelta < 210,
+  `Distance delta should remain preserved (~200m), got ${distanceDelta}`
+);
+
+
 
 
 
