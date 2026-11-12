@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import HqView from './components/hqView';
 import SetupGarage from './components/setupGarage';
+import TeamCreatorModal from './components/teamCreatorModal';
 import TrackCanvas from './components/trackCanvas';
 import { DEFAULT_DB } from './data/defaultDb';
 import { validateCustomDatabase } from './engine/carPhysicsMapper';
+import { executeTeamReplacement, type CustomTeamInput } from './engine/customTeamBuilder';
 import {
   applyRaceWeekendResults,
   createInitialCareerState,
@@ -77,6 +79,7 @@ export default function App() {
 
   const [view, setView] = useState<AppView>('MAIN_MENU');
   const [isQuickWeekend, setIsQuickWeekend] = useState<boolean>(false);
+  const [isTeamCreatorOpen, setIsTeamCreatorOpen] = useState<boolean>(false);
   const [quickTrackIdx, setQuickTrackIdx] = useState<number>(0);
   const [quickWeather, setQuickWeather] = useState<WeatherCondition>('DRY');
   const [modStatusMsg, setModStatusMsg] = useState<string | null>(null);
@@ -296,6 +299,46 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  const exportDatabaseJson = () => {
+    const blob = new Blob([JSON.stringify(career.db, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'project-apex-database.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleResetDefaultDatabase = () => {
+    const confirmed = window.confirm(
+      'Sei sicuro di voler ripristinare il database predefinito? Eventuali scuderie personalizzate verranno rimosse e la carriera azzerata.'
+    );
+    if (!confirmed) return;
+    const freshCareer = createInitialCareerState(
+      DEFAULT_DB,
+      'corsa-rossa',
+      career.distancePreset
+    );
+    updateAndSaveCareer(freshCareer);
+    soundEffects.playTacticalClick();
+    setModStatusMsg('Database predefinito ripristinato con successo.');
+  };
+
+  const handleConfirmCreateCustomTeam = (input: CustomTeamInput) => {
+    const { updatedDb, newTeam } = executeTeamReplacement(career.db, input);
+    const freshCareer = createInitialCareerState(
+      updatedDb,
+      newTeam.id,
+      career.distancePreset
+    );
+    updateAndSaveCareer(freshCareer);
+    soundEffects.playCheckeredFlag();
+    setModStatusMsg(`Scuderia "${newTeam.name}" fondata con successo! Nuova carriera avviata.`);
+    setIsTeamCreatorOpen(false);
+  };
+
   const playerCars = sim.cars.filter((c) => c.teamId === career.playerTeamId);
   const setupConfMap: Record<string, number> = {};
   for (const cfg of preRaceConfigs) {
@@ -388,28 +431,41 @@ export default function App() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  {(
-                    [
-                      ['SPRINT_25', '25% (~15 Giri)'],
-                      ['STANDARD_50', '50% (~30 Giri)'],
-                      ['FULL_100', '100% (~60 Giri)'],
-                    ] as [RaceDistancePreset, string][]
-                  ).map(([preset, label]) => (
-                    <button
-                      key={preset}
-                      onClick={() =>
-                        updateAndSaveCareer({ ...career, distancePreset: preset })
-                      }
-                      className={`px-2.5 py-1 rounded border text-[11px] font-bold cursor-pointer ${
-                        career.distancePreset === preset
-                          ? 'bg-amber-500 border-amber-300 text-black'
-                          : 'bg-[#090D16] border-slate-700 text-slate-400'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundEffects.playRadioBeep();
+                      setIsTeamCreatorOpen(true);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-black font-bold px-3 py-1.5 rounded text-xs uppercase cursor-pointer transition"
+                  >
+                    🛠️ FONDA LA TUA SCUDERIA
+                  </button>
+
+                  <div className="flex items-center gap-1.5">
+                    {(
+                      [
+                        ['SPRINT_25', '25% (~15 Giri)'],
+                        ['STANDARD_50', '50% (~30 Giri)'],
+                        ['FULL_100', '100% (~60 Giri)'],
+                      ] as [RaceDistancePreset, string][]
+                    ).map(([preset, label]) => (
+                      <button
+                        key={preset}
+                        onClick={() =>
+                          updateAndSaveCareer({ ...career, distancePreset: preset })
+                        }
+                        className={`px-2.5 py-1 rounded border text-[11px] font-bold cursor-pointer ${
+                          career.distancePreset === preset
+                            ? 'bg-amber-500 border-amber-300 text-black'
+                            : 'bg-[#090D16] border-slate-700 text-slate-400'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -565,6 +621,20 @@ export default function App() {
                     className="hidden"
                   />
                 </label>
+                <button
+                  type="button"
+                  onClick={exportDatabaseJson}
+                  className="block w-full py-2 px-3 rounded bg-[#090D16] border border-purple-500/40 hover:border-purple-400 text-purple-300 hover:text-white text-center font-bold cursor-pointer transition text-xs"
+                >
+                  💾 ESPORTA DATABASE (.JSON)
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetDefaultDatabase}
+                  className="block w-full py-2 px-3 rounded bg-[#090D16] border border-red-500/40 hover:border-red-500 text-red-300 hover:text-red-200 text-center font-bold cursor-pointer transition text-xs"
+                >
+                  🔄 RIPRISTINA DATABASE PREDEFINITO
+                </button>
               </div>
             </div>
           </div>
@@ -1300,6 +1370,13 @@ export default function App() {
           </div>
         </div>
       )}
+
+      <TeamCreatorModal
+        isOpen={isTeamCreatorOpen}
+        currentDb={career.db}
+        onClose={() => setIsTeamCreatorOpen(false)}
+        onConfirm={handleConfirmCreateCustomTeam}
+      />
     </div>
   );
 }

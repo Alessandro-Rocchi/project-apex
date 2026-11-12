@@ -621,6 +621,99 @@ for (const team of doubleSwapReplacement.updatedDb.teams) {
 }
 assert.equal(validateCustomDatabase(doubleSwapReplacement.updatedDb).valid, true);
 
+// Task 3: Integration Tests (Custom Team Career Initialization, Sponsor Assignment, Modding Export/Reset)
+const customCreation = executeTeamReplacement(DEFAULT_DB, {
+  name: 'Scuderia Futura',
+  nationality: 'Italia',
+  colorHex: '#00AA88',
+  accentHex: '#FFFF00',
+  tier: 2,
+  replacedTeamId: 'modena-veloce',
+  primaryDriverId: 'drv-belli',
+  secondaryDriverId: 'drv-korsakov',
+});
+
+const customCareer = createInitialCareerState(
+  customCreation.updatedDb,
+  customCreation.newTeam.id,
+  'STANDARD_50'
+);
+
+// Full creation and career initialization verification
+assert.equal(customCareer.playerTeamId, customCreation.newTeam.id);
+assert.equal(customCareer.season, 1);
+assert.equal(customCareer.currentDay, 1);
+assert.equal(customCareer.currentRoundIndex, 0);
+assert.equal(customCareer.distancePreset, 'STANDARD_50');
+assert.equal(customCareer.activeRdProjects.length, 0);
+assert.equal(customCareer.budgetCapSpentMillions, 0);
+
+// Sponsor properly assigned based on tier
+const mainSponsor = customCareer.db.sponsors.find((s) => s.id === customCareer.activeMainSponsorId)!;
+assert.ok(mainSponsor, 'Main sponsor must be assigned');
+assert.equal(mainSponsor.type, 'MAIN');
+assert.ok(
+  mainSponsor.minTierAllowed >= customCreation.newTeam.tier,
+  `Main sponsor minTierAllowed (${mainSponsor.minTierAllowed}) must be >= team tier (${customCreation.newTeam.tier})`
+);
+
+assert.ok(customCareer.activeSecondarySponsorIds.length > 0, 'Secondary sponsors must be assigned');
+for (const secId of customCareer.activeSecondarySponsorIds) {
+  const secSponsor = customCareer.db.sponsors.find((s) => s.id === secId)!;
+  assert.ok(secSponsor, `Secondary sponsor ${secId} must exist`);
+  assert.equal(secSponsor.type, 'SECONDARY');
+  assert.ok(
+    secSponsor.minTierAllowed >= customCreation.newTeam.tier,
+    `Secondary sponsor minTierAllowed (${secSponsor.minTierAllowed}) must be >= team tier (${customCreation.newTeam.tier})`
+  );
+}
+
+// Verification with Underdog Tier 5 team
+const tier5Creation = executeTeamReplacement(DEFAULT_DB, {
+  name: 'Backmarker Racing',
+  nationality: 'Regno Unito',
+  colorHex: '#111111',
+  accentHex: '#555555',
+  tier: 5,
+  replacedTeamId: 'nordic-glory',
+  primaryDriverId: 'drv-novak',
+  secondaryDriverId: 'drv-alvarez',
+});
+
+const tier5Career = createInitialCareerState(
+  tier5Creation.updatedDb,
+  tier5Creation.newTeam.id,
+  'FULL_100'
+);
+
+assert.equal(tier5Career.playerTeamId, tier5Creation.newTeam.id);
+assert.equal(tier5Career.season, 1);
+assert.equal(tier5Career.currentDay, 1);
+assert.equal(tier5Career.currentRoundIndex, 0);
+assert.equal(tier5Career.distancePreset, 'FULL_100');
+
+const t5MainSponsor = tier5Career.db.sponsors.find((s) => s.id === tier5Career.activeMainSponsorId)!;
+assert.ok(t5MainSponsor, 'Tier 5 main sponsor must be assigned');
+assert.ok(t5MainSponsor.minTierAllowed >= 5);
+
+for (const secId of tier5Career.activeSecondarySponsorIds) {
+  const secSponsor = tier5Career.db.sponsors.find((s) => s.id === secId)!;
+  assert.ok(secSponsor);
+  assert.ok(secSponsor.minTierAllowed >= 5);
+}
+
+// Verification of Default DB reset lifecycle
+const resetCareer = createInitialCareerState(DEFAULT_DB, 'corsa-rossa', tier5Career.distancePreset);
+assert.equal(resetCareer.playerTeamId, 'corsa-rossa');
+assert.equal(resetCareer.db.teams.length, 10);
+assert.ok(resetCareer.db.teams.some((t) => t.id === 'corsa-rossa'));
+assert.ok(!resetCareer.db.teams.some((t) => t.id === 'custom-backmarker-racing'));
+assert.ok(!resetCareer.db.teams.some((t) => t.id === 'custom-scuderia-futura'));
+assert.equal(resetCareer.season, 1);
+assert.equal(resetCareer.currentDay, 1);
+assert.equal(resetCareer.currentRoundIndex, 0);
+
+
 
 
 
