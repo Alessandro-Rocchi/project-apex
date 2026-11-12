@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import HqView from './components/hqView';
 import SetupGarage from './components/setupGarage';
 import TrackCanvas from './components/trackCanvas';
@@ -132,9 +132,18 @@ export default function App() {
     return () => clearInterval(id);
   }, [running, speedMultiplier, activeTrack, career.db.teams, career.db.drivers, career.playerTeamId]);
 
+  const prevRaceControlRef = useRef(sim.raceControl);
   useEffect(() => {
-    if (sim.raceControl === 'VIRTUAL_SAFETY_CAR' || sim.raceControl === 'SAFETY_CAR') {
-      soundEffects.playRadioBeep();
+    if (prevRaceControlRef.current !== sim.raceControl) {
+      if (
+        sim.raceControl === 'VIRTUAL_SAFETY_CAR' ||
+        sim.raceControl === 'SAFETY_CAR' ||
+        prevRaceControlRef.current === 'VIRTUAL_SAFETY_CAR' ||
+        prevRaceControlRef.current === 'SAFETY_CAR'
+      ) {
+        soundEffects.playRadioBeep();
+      }
+      prevRaceControlRef.current = sim.raceControl;
     }
   }, [sim.raceControl]);
 

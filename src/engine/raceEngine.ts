@@ -651,9 +651,10 @@ export function stepRaceSimulation(
           (car.teamOrder === 'HOLD_POSITION' || carAhead.teamOrder === 'HOLD_POSITION');
 
         if (raceControl !== 'GREEN' || holdTeamOrder) {
-          car.totalDistanceMeters = Math.min(
-            car.totalDistanceMeters,
-            carAhead.totalDistanceMeters - 3.5
+          const preStepDist = car.totalDistanceMeters - stepMeters;
+          car.totalDistanceMeters = Math.max(
+            preStepDist,
+            Math.min(car.totalDistanceMeters, carAhead.totalDistanceMeters - 3.5)
           );
           car.distanceOnLapMeters =
             ((car.totalDistanceMeters % track.lengthMeters) + track.lengthMeters) %

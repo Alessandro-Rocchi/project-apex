@@ -294,6 +294,18 @@ assert.equal(steppedIncident.raceControl, 'VIRTUAL_SAFETY_CAR');
 assert.equal(steppedIncident.vscLapsRemaining, 2);
 assert.ok(steppedIncident.radioLog.some((m) => m.includes('VSC ATTIVATA')));
 
+// Full Safety Car trigger test (on-track hazard >= 0.65 threshold)
+incidentSim.raceTimeSec = 2.6;
+const car1 = incidentSim.cars.find((c) => c.driverNumber === 1);
+assert.ok(car1);
+car1.distanceOnLapMeters = track0.lengthMeters - 1;
+car1.totalDistanceMeters = track0.lengthMeters - 1;
+const steppedScIncident = stepRaceSimulation(incidentSim, track0, minRelTeams, DEFAULT_DB.drivers, 0.1, 'corsa-rossa');
+assert.equal(steppedScIncident.raceControl, 'SAFETY_CAR');
+assert.equal(steppedScIncident.safetyCarLapsRemaining, 2);
+assert.ok(steppedScIncident.radioLog.some((m) => m.includes('SAFETY CAR')));
+
+
 // Task 4 (VSC): AI Strategic Opportunism under VSC
 const aiCarMock = {
   ...testInitSim.cars[2],
@@ -355,6 +367,49 @@ assert.ok(
   distanceDelta > 190 && distanceDelta < 210,
   `Distance delta should remain preserved (~200m), got ${distanceDelta}`
 );
+
+// Fix 1 (Reviewer Critical): Zero negative distance step on Green -> VSC transition
+const closeCarSim = {
+  ...vscSim,
+  cars: vscSim.cars.map((c, i) =>
+    i === 0
+      ? { ...c, distanceOnLapMeters: 1000, totalDistanceMeters: 1000 }
+      : i === 1
+      ? { ...c, distanceOnLapMeters: 999.5, totalDistanceMeters: 999.5 }
+      : c
+  ),
+};
+const steppedCloseSim = stepRaceSimulation(
+  closeCarSim,
+  track0,
+  DEFAULT_DB.teams,
+  DEFAULT_DB.drivers,
+  0.1,
+  'corsa-rossa'
+);
+const car1Delta = steppedCloseSim.cars[1].totalDistanceMeters - 999.5;
+assert.ok(
+  car1Delta >= 0,
+  `Car distance step must never be negative on VSC, got ${car1Delta}`
+);
+
+// Fix 2 (Reviewer Important): Tyre wear (0.35x) and fuel burn (0.40x) reductions under VSC
+const greenSim = createInitialRaceState(DEFAULT_DB.teams, DEFAULT_DB.drivers, [], {
+  track: track0,
+  distancePreset: 'SPRINT_25',
+});
+greenSim.raceControl = 'GREEN';
+const steppedGreen = stepRaceSimulation(greenSim, track0, DEFAULT_DB.teams, DEFAULT_DB.drivers, 1.0, 'corsa-rossa');
+const steppedVscRun = stepRaceSimulation(vscSim, track0, DEFAULT_DB.teams, DEFAULT_DB.drivers, 1.0, 'corsa-rossa');
+
+const greenWear = greenSim.cars[0].tyreWear - steppedGreen.cars[0].tyreWear;
+const vscWear = vscSim.cars[0].tyreWear - steppedVscRun.cars[0].tyreWear;
+assert.ok(Math.abs(vscWear - greenWear * 0.35) < 1e-4, `Expected VSC wear ~0.35x green, got ${vscWear / greenWear}`);
+
+const greenFuel = greenSim.cars[0].fuelKg - steppedGreen.cars[0].fuelKg;
+const vscFuel = vscSim.cars[0].fuelKg - steppedVscRun.cars[0].fuelKg;
+assert.ok(Math.abs(vscFuel - greenFuel * 0.40) < 1e-4, `Expected VSC fuel ~0.40x green, got ${vscFuel / greenFuel}`);
+
 
 
 
