@@ -265,6 +265,36 @@ assert.equal(steppedVscEnd.raceControl, 'GREEN');
 assert.equal(steppedVscEnd.vscLapsRemaining, 0);
 assert.ok(steppedVscEnd.radioLog.some((m) => m.includes('VSC TERMINATA')));
 
+// Task 3 (VSC): Incident differentiation
+const minRelTeams = DEFAULT_DB.teams.map((t) => ({
+  ...t,
+  components: {
+    ...t.components,
+    powerUnit: { performance: 80, reliability: 1 },
+    floor: { performance: 80, reliability: 1 },
+    suspension: { performance: 80, reliability: 1 },
+    brakes: { performance: 80, reliability: 1 },
+    frontWing: { performance: 80, reliability: 1 },
+    rearWing: { performance: 80, reliability: 1 },
+  },
+}));
+const incidentSim = createInitialRaceState(minRelTeams, DEFAULT_DB.drivers, [], {
+  track: track0,
+  distancePreset: 'SPRINT_25',
+});
+incidentSim.raceTimeSec = 0.5;
+const car16 = incidentSim.cars.find((c) => c.driverNumber === 16);
+assert.ok(car16);
+car16.distanceOnLapMeters = track0.lengthMeters - 1;
+car16.totalDistanceMeters = track0.lengthMeters - 1;
+
+const steppedIncident = stepRaceSimulation(incidentSim, track0, minRelTeams, DEFAULT_DB.drivers, 0.1, 'corsa-rossa');
+assert.equal(steppedIncident.raceControl, 'VIRTUAL_SAFETY_CAR');
+assert.equal(steppedIncident.vscLapsRemaining, 2);
+assert.ok(steppedIncident.radioLog.some((m) => m.includes('VSC ATTIVATA')));
+
+
+
 
 
 

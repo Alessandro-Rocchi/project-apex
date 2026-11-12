@@ -779,11 +779,20 @@ export function stepRaceSimulation(
         if (pseudoRand < mechFailThreshold) {
           car.isRetired = true;
           car.retirementReason = 'Guasto Power Unit / Cambio';
-          raceControl = 'SAFETY_CAR';
-          safetyCarLapsRemaining = 2;
-          newRadioMessages.push(
-            `[RITIRO & SAFETY CAR]: ${car.driverCode} si ferma in pista (${car.retirementReason})! Safety Car in pista!`
-          );
+          const isOffTrack = (pseudoRand / Math.max(1e-6, mechFailThreshold)) < 0.65;
+          if (isOffTrack) {
+            raceControl = 'VIRTUAL_SAFETY_CAR';
+            vscLapsRemaining = 2;
+            newRadioMessages.push(
+              `[VSC ATTIVATA]: ${car.driverCode} si ferma a bordo pista (${car.retirementReason}). Virtual Safety Car in pista!`
+            );
+          } else {
+            raceControl = 'SAFETY_CAR';
+            safetyCarLapsRemaining = 2;
+            newRadioMessages.push(
+              `[RITIRO & SAFETY CAR]: ${car.driverCode} si ferma in traiettoria (${car.retirementReason})! Safety Car in pista!`
+            );
+          }
           continue;
         } else if (pseudoRand < driverErrorThreshold && car.frontWingDamage === 0) {
           car.frontWingDamage = 35;
