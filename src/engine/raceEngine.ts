@@ -36,6 +36,7 @@ export interface RaceSimulationSnapshot {
   trackWaterLevel: number; // 0.00 (asciutto) -> 1.00 (allagato 5mm)
   raceControl: RaceControlStatus;
   safetyCarLapsRemaining: number;
+  vscLapsRemaining: number;
   bestLapTimeSec: number | null;
   bestLapDriverCode: string | null;
   overallBestSectors: [number | null, number | null, number | null];
@@ -273,6 +274,7 @@ export function createInitialRaceState(
     trackWaterLevel: initialWater,
     raceControl: 'GREEN',
     safetyCarLapsRemaining: 0,
+    vscLapsRemaining: 0,
     bestLapTimeSec: null,
     bestLapDriverCode: null,
     overallBestSectors: [null, null, null],
@@ -304,6 +306,7 @@ export function stepRaceSimulation(
   let trackWaterLevel = prev.trackWaterLevel;
   let raceControl = prev.raceControl;
   let safetyCarLapsRemaining = prev.safetyCarLapsRemaining;
+  let vscLapsRemaining = prev.vscLapsRemaining ?? 0;
   let bestLapTimeSec = prev.bestLapTimeSec;
   let bestLapDriverCode = prev.bestLapDriverCode;
   const overallBestSectors: [number | null, number | null, number | null] = [
@@ -590,6 +593,8 @@ export function stepRaceSimulation(
         carAhead && car.gapToAheadSec > 0.55
           ? Math.min(rawSpeedMs, 64)
           : Math.min(rawSpeedMs, 48);
+    } else if (raceControl === 'VIRTUAL_SAFETY_CAR') {
+      rawSpeedMs = Math.min(rawSpeedMs * 0.62, segment.referenceSpeedMs * 0.62);
     } else if (raceControl === 'YELLOW') {
       rawSpeedMs = Math.min(rawSpeedMs, segment.referenceSpeedMs * 0.78);
     }
@@ -646,9 +651,10 @@ export function stepRaceSimulation(
           (car.teamOrder === 'HOLD_POSITION' || carAhead.teamOrder === 'HOLD_POSITION');
 
         if (raceControl !== 'GREEN' || holdTeamOrder) {
-          car.totalDistanceMeters = Math.min(
-            car.totalDistanceMeters,
-            carAhead.totalDistanceMeters - 3.5
+          const preStepDist = car.totalDistanceMeters - stepMeters;
+          car.totalDistanceMeters = Math.max(
+            preStepDist,
+            Math.min(car.totalDistanceMeters, carAhead.totalDistanceMeters - 3.5)
           );
           car.distanceOnLapMeters =
             ((car.totalDistanceMeters % track.lengthMeters) + track.lengthMeters) %
@@ -734,6 +740,14 @@ export function stepRaceSimulation(
               '[SAFETY CAR]: La Safety Car rientra ai box in questo giro! Ripristino Bandiera Verde.'
             );
           }
+        } else if (raceControl === 'VIRTUAL_SAFETY_CAR') {
+          vscLapsRemaining -= 1;
+          if (vscLapsRemaining <= 0) {
+            raceControl = 'GREEN';
+            newRadioMessages.push(
+              '[VSC TERMINATA]: Bandiera Verde! Ripristino del ritmo di gara.'
+            );
+          }
         }
 
         // Possibile cambio meteo a metà gara in base a baseRainChance
@@ -766,11 +780,20 @@ export function stepRaceSimulation(
         if (pseudoRand < mechFailThreshold) {
           car.isRetired = true;
           car.retirementReason = 'Guasto Power Unit / Cambio';
-          raceControl = 'SAFETY_CAR';
-          safetyCarLapsRemaining = 2;
-          newRadioMessages.push(
-            `[RITIRO & SAFETY CAR]: ${car.driverCode} si ferma in pista (${car.retirementReason})! Safety Car in pista!`
-          );
+          const isOffTrack = (pseudoRand / Math.max(1e-6, mechFailThreshold)) < 0.65;
+          if (isOffTrack) {
+            raceControl = 'VIRTUAL_SAFETY_CAR';
+            vscLapsRemaining = 2;
+            newRadioMessages.push(
+              `[VSC ATTIVATA]: ${car.driverCode} si ferma a bordo pista (${car.retirementReason}). Virtual Safety Car in pista!`
+            );
+          } else {
+            raceControl = 'SAFETY_CAR';
+            safetyCarLapsRemaining = 2;
+            newRadioMessages.push(
+              `[RITIRO & SAFETY CAR]: ${car.driverCode} si ferma in traiettoria (${car.retirementReason})! Safety Car in pista!`
+            );
+          }
           continue;
         } else if (pseudoRand < driverErrorThreshold && car.frontWingDamage === 0) {
           car.frontWingDamage = 35;
@@ -874,6 +897,7 @@ export function stepRaceSimulation(
     trackWaterLevel,
     raceControl,
     safetyCarLapsRemaining,
+    vscLapsRemaining,
     bestLapTimeSec,
     bestLapDriverCode,
     overallBestSectors,

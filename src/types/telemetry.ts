@@ -6,7 +6,7 @@ export type ErsMode = 'HARVEST' | 'NEUTRAL' | 'DEPLOY' | 'OVERTAKE';
 export type TeamOrderMode = 'NONE' | 'HOLD_POSITION' | 'SWAP_POSITIONS';
 export type RaceDistancePreset = 'SPRINT_25' | 'STANDARD_50' | 'FULL_100';
 export type WeatherCondition = 'DRY' | 'LIGHT_RAIN' | 'HEAVY_RAIN';
-export type RaceControlStatus = 'GREEN' | 'YELLOW' | 'SAFETY_CAR';
+export type RaceControlStatus = 'GREEN' | 'YELLOW' | 'SAFETY_CAR' | 'VIRTUAL_SAFETY_CAR';
 export type SectorColor = 'PURPLE' | 'GREEN' | 'YELLOW' | 'NONE';
 
 export type ComponentKey =

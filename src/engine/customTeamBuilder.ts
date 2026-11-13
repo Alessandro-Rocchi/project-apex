@@ -1,0 +1,211 @@
+import type { CarComponents, Driver, GameDatabase, Team, TeamFacilities } from '../types/telemetry.ts';
+import { hydrateTeamPhysics } from './carPhysicsMapper.ts';
+
+export interface CustomTeamInput {
+  name: string;
+  nationality: string;
+  colorHex: string;
+  accentHex: string;
+  tier: 1 | 2 | 3 | 4 | 5;
+  replacedTeamId: string;
+  primaryDriverId: string;
+  secondaryDriverId: string;
+}
+
+function createComponents(performance: number, reliability: number): CarComponents {
+  return {
+    powerUnit: { performance, reliability },
+    frontWing: { performance, reliability },
+    rearWing: { performance, reliability },
+    floor: { performance, reliability },
+    suspension: { performance, reliability },
+    brakes: { performance, reliability },
+  };
+}
+
+export const TIER_PRESETS: Record<
+  1 | 2 | 3 | 4 | 5,
+  { budgetMillions: number; facilities: TeamFacilities; components: CarComponents }
+> = {
+  1: {
+    budgetMillions: 48.0,
+    facilities: { factory: 3, windTunnel: 3, simulator: 3 },
+    components: createComponents(93, 91),
+  },
+  2: {
+    budgetMillions: 40.0,
+    facilities: { factory: 2, windTunnel: 3, simulator: 2 },
+    components: createComponents(89, 90),
+  },
+  3: {
+    budgetMillions: 33.0,
+    facilities: { factory: 2, windTunnel: 2, simulator: 2 },
+    components: createComponents(85, 89),
+  },
+  4: {
+    budgetMillions: 26.0,
+    facilities: { factory: 1, windTunnel: 2, simulator: 1 },
+    components: createComponents(81, 87),
+  },
+  5: {
+    budgetMillions: 20.0,
+    facilities: { factory: 1, windTunnel: 1, simulator: 1 },
+    components: createComponents(77, 85),
+  },
+};
+
+function toTeamId(name: string): string {
+  const cleanSlug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+  return cleanSlug ? `custom-${cleanSlug}` : 'custom-team';
+}
+
+export function buildCustomTeam(input: CustomTeamInput, generatedId?: string): Team {
+  const preset = TIER_PRESETS[input.tier];
+  return hydrateTeamPhysics({
+    id: generatedId || toTeamId(input.name),
+    name: input.name,
+    nationality: input.nationality,
+    colorHex: input.colorHex,
+    accentHex: input.accentHex,
+    tier: input.tier,
+    budgetMillions: preset.budgetMillions,
+    facilities: preset.facilities,
+    components: preset.components,
+  });
+}
+
+export function executeTeamReplacement(
+  db: GameDatabase,
+  input: CustomTeamInput,
+  customTeamId?: string
+): { updatedDb: GameDatabase; newTeam: Team } {
+  if (input.primaryDriverId === input.secondaryDriverId) {
+    throw new Error('Primary and Secondary drivers must be distinct.');
+  }
+
+  const baseId = customTeamId || toTeamId(input.name);
+  let resolvedId = baseId;
+  let suffix = 2;
+  while (db.teams.some((t) => t.id === resolvedId && t.id !== input.replacedTeamId)) {
+    resolvedId = `${baseId}-${suffix++}`;
+  }
+
+  const updatedDb = structuredClone(db);
+  const newTeam = buildCustomTeam(input, resolvedId);
+
+  // Replaces the team whose id === input.replacedTeamId with newTeam in teams
+  const teamIdx = updatedDb.teams.findIndex((t) => t.id === input.replacedTeamId);
+  if (teamIdx >= 0) {
+    updatedDb.teams[teamIdx] = newTeam;
+  } else {
+    updatedDb.teams.push(newTeam);
+  }
+
+  // Displaced reserve driver reassigned to newTeam.id
+  for (const d of updatedDb.drivers) {
+    if (d.teamId === input.replacedTeamId && d.role === 'RESERVE') {
+      d.teamId = newTeam.id;
+    }
+  }
+
+  // Displaced titular drivers gathered into available replacement queue
+  const displacedTitularQueue = updatedDb.drivers.filter(
+    (d) =>
+      d.teamId === input.replacedTeamId &&
+      (d.role === 'PRIMARY' || d.role === 'SECONDARY') &&
+      d.id !== input.primaryDriverId &&
+      d.id !== input.secondaryDriverId
+  );
+
+  // Selected drivers
+  const selectedDrivers: Array<{ id: string; role: 'PRIMARY' | 'SECONDARY' }> = [
+    { id: input.primaryDriverId, role: 'PRIMARY' },
+    { id: input.secondaryDriverId, role: 'SECONDARY' },
+  ];
+
+  for (const sel of selectedDrivers) {
+    const driver = updatedDb.drivers.find((d) => d.id === sel.id);
+    if (!driver) continue;
+
+    const prevTeamId = driver.teamId;
+    const prevRole = driver.role;
+
+    if (
+      prevTeamId &&
+      prevTeamId !== input.replacedTeamId &&
+      (prevRole === 'PRIMARY' || prevRole === 'SECONDARY')
+    ) {
+      const displacedDriver = displacedTitularQueue.shift();
+      if (displacedDriver) {
+        displacedDriver.teamId = prevTeamId;
+        displacedDriver.role = prevRole;
+      }
+    }
+
+    driver.teamId = newTeam.id;
+    driver.role = sel.role;
+  }
+
+  // If replaced team's reserve driver was promoted to titular seat, newTeam may have no RESERVE.
+  // In that case, preserve a reserve driver by assigning one displaced titular driver as RESERVE.
+  const hasReserve = updatedDb.drivers.some(
+    (d) => d.teamId === newTeam.id && d.role === 'RESERVE'
+  );
+  if (!hasReserve && displacedTitularQueue.length > 0) {
+    const reserveCandidate = displacedTitularQueue.shift();
+    if (reserveCandidate) {
+      reserveCandidate.teamId = newTeam.id;
+      reserveCandidate.role = 'RESERVE';
+    }
+  }
+
+  // Any remaining displaced titular drivers become free agents
+  for (const d of displacedTitularQueue) {
+    d.teamId = null;
+    d.role = 'FREE_AGENT';
+  }
+
+  return { updatedDb, newTeam };
+}
+
+const TIER_PACE_RANGES: Record<1 | 2 | 3 | 4 | 5, { min: number; max: number }> = {
+  1: { min: 90, max: 100 },
+  2: { min: 86, max: 91 },
+  3: { min: 82, max: 87 },
+  4: { min: 78, max: 83 },
+  5: { min: 0, max: 80 },
+};
+
+export function pickRandomDriversForTier(
+  drivers: Driver[],
+  tier: 1 | 2 | 3 | 4 | 5
+): [string, string] {
+  if (drivers.length === 0) return ['', ''];
+  if (drivers.length === 1) return [drivers[0].id, drivers[0].id];
+
+  const range = TIER_PACE_RANGES[tier];
+  const inRange = drivers.filter((d) => d.pace >= range.min && d.pace <= range.max);
+
+  if (inRange.length >= 2) {
+    const idx1 = Math.floor(Math.random() * inRange.length);
+    let idx2 = Math.floor(Math.random() * (inRange.length - 1));
+    if (idx2 >= idx1) idx2++;
+    return [inRange[idx1].id, inRange[idx2].id];
+  }
+
+  // Not enough drivers in range: sort by distance to bracket
+  const sorted = [...drivers].sort((a, b) => {
+    const distA =
+      a.pace < range.min ? range.min - a.pace : a.pace > range.max ? a.pace - range.max : 0;
+    const distB =
+      b.pace < range.min ? range.min - b.pace : b.pace > range.max ? b.pace - range.max : 0;
+    return distA - distB;
+  });
+
+  const first = sorted[0];
+  const second = sorted.find((d) => d.id !== first.id) || sorted[1];
+  return [first.id, second.id];
+}
